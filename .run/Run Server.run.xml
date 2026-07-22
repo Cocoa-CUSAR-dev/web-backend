@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run Server" type="JetRunConfigurationType">
+    <option name="MAIN_CLASS_NAME" value="com.cocoa.web.WebApplicationKt" />
+    <module name="web.main" />
+    <shortenClasspath name="NONE" />
+    <option name="VM_PARAMETERS" value="-Xms1024m -Xmx2048m -Dspring.config.location=classpath:local.properties" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

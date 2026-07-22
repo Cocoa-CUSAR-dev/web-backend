@@ -1,0 +1,28 @@
+# Copy this file to `local.properties` (same folder) and fill in real values.
+# The real local.properties is gitignored — never commit it.
+#
+# This file is loaded by the IntelliJ "Run Server" run configuration, which passes
+#   -Dspring.config.location=classpath:local.properties
+# so it REPLACES application.properties for that run path. (Running via
+# `./gradlew bootRun` uses application.properties + the root .env instead.)
+
+spring.application.name=web
+
+# NeonDB
+spring.datasource.url=                          # jdbc:postgresql://... connection string
+spring.datasource.username=
+spring.datasource.password=
+spring.datasource.hikari.maximumPoolSize=32
+spring.datasource.hikari.minimumIdle=10
+spring.datasource.hikari.idleTimeout=300000
+
+server.servlet.context-path=/api/v1
+server.port=3001
+
+jwt.key=                                         # secret signing key — strong random value
+jwt.name=                                        # JWT cookie name
+jwt.access-token-expiration=36000000             # milliseconds
+jwt.refresh-token-expiration=86400000            # milliseconds
+
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.api-docs.path=/api-docs
