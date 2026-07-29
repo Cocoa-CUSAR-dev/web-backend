@@ -27,6 +27,9 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Run ktlintCheck
         run: ./gradlew ktlintCheck --no-daemon
 
@@ -71,6 +74,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
 
       - name: Wait for Postgres
         run: |
@@ -133,6 +139,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
 
       - name: Wait for Postgres
         run: until pg_isready -h localhost -p 5432 -U postgres; do echo "waiting..."; sleep 2; done
