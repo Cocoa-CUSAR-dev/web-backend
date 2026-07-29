@@ -15,7 +15,13 @@ import org.springdoc.core.annotations.ParameterObject
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 @RestController
@@ -25,7 +31,6 @@ class ResearcherController(
     private val researcherService: ResearcherService,
     private val userService: UserService,
 ) : BaseController() {
-
     @PreAuthorize("hasAuthority('create:researcher:own')")
     @Operation(summary = "Register as researcher", description = "Links researcher profile to the authenticated user.")
     @PostMapping("/register")
@@ -54,22 +59,25 @@ class ResearcherController(
         val currentUser = getAuthenticatedUser()
         val userDetail = userService.getUserDetail(currentUser.userId)
         val researcher = researcherService.getResearcher(currentUser.userId)
-        val researcherInfo = Researcher.Detail(
-            email = userDetail.email,
-            firstName = researcher.firstName,
-            lastName = researcher.lastName,
-            organization = researcher.organization,
-            isPasswordReset = userDetail.isPasswordReset,
-            isRequiresPasswordReset = userDetail.isRequiresPasswordReset,
-            roles = userDetail.roles
-        )
+        val researcherInfo =
+            Researcher.Detail(
+                email = userDetail.email,
+                firstName = researcher.firstName,
+                lastName = researcher.lastName,
+                organization = researcher.organization,
+                isPasswordReset = userDetail.isPasswordReset,
+                isRequiresPasswordReset = userDetail.isRequiresPasswordReset,
+                roles = userDetail.roles,
+            )
         return researcherInfo.toResponseEntity(HttpStatus.OK)
     }
 
     @PreAuthorize("hasAuthority('read:researcher:all')")
     @Operation(summary = "Get researcher by ID")
     @GetMapping("/{userId}")
-    fun getResearcher(@PathVariable userId: UUID): ResponseEntity<ApiResponse<Researcher.Entity>> {
+    fun getResearcher(
+        @PathVariable userId: UUID,
+    ): ResponseEntity<ApiResponse<Researcher.Entity>> {
         val researcher = researcherService.getResearcher(userId)
         return researcher.toResponseEntity(HttpStatus.OK)
     }
@@ -88,13 +96,15 @@ class ResearcherController(
         }
 
         researcherService.updateResearcher(userId, request.toUpdate())
-        return "Successfully updated researcher".toResponseEntity(HttpStatus.OK )
+        return "Successfully updated researcher".toResponseEntity(HttpStatus.OK)
     }
 
     @PreAuthorize("hasAuthority('delete:researcher:any')")
     @Operation(summary = "Delete researcher profile")
     @DeleteMapping("/{userId}")
-    fun deleteResearcher(@PathVariable userId: UUID): ResponseEntity<ApiResponse<String>> {
+    fun deleteResearcher(
+        @PathVariable userId: UUID,
+    ): ResponseEntity<ApiResponse<String>> {
         researcherService.deleteResearcher(userId)
         return "Successfully deleted researcher".toResponseEntity(HttpStatus.OK)
     }

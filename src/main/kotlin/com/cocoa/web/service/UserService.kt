@@ -10,11 +10,10 @@ import java.util.UUID
 @Service
 class UserService(
     private val userRepository: UserRepository,
-): BaseService() {
-
+) : BaseService() {
     fun getUser(username: String): User.Entity {
         return userRepository.fetchUser(username)
-            ?:  throw EntityNotFoundException("User not found")
+            ?: throw EntityNotFoundException("User not found")
     }
 
     fun getUserDetail(userId: UUID): User.Detail {
@@ -34,8 +33,10 @@ class UserService(
         )
     }
 
-    fun resetPassword(userId: UUID, newPassword: String) {
+    fun resetPassword(
+        userId: UUID,
+        newPassword: String,
+    ) {
         userRepository.updatePassword(userId, newPassword)
     }
-
 }

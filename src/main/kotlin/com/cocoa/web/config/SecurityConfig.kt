@@ -23,21 +23,21 @@ class SecurityConfig(
     @Value("\${cors.origins:default}") val allowedOrigins: List<String>,
     private val authenticationProvider: AuthenticationProvider,
 ) {
-
     @Bean
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
     ): DefaultSecurityFilterChain {
-        val publicEndpoints = arrayOf(
-            "/auth/login",
-            "/auth/register",
-            "/swagger-ui/**",
-            "/swagger-ui/index.html",
-            "/api-docs/**",
-            "/public/**",
-            "/error"
-        )
+        val publicEndpoints =
+            arrayOf(
+                "/auth/login",
+                "/auth/register",
+                "/swagger-ui/**",
+                "/swagger-ui/index.html",
+                "/api-docs/**",
+                "/public/**",
+                "/error",
+            )
 
         return http
             .csrf { it.disable() }
@@ -60,7 +60,6 @@ class SecurityConfig(
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
-
         val configuration = CorsConfiguration()
         configuration.allowedOrigins = allowedOrigins
         configuration.allowedMethods = listOf("*")

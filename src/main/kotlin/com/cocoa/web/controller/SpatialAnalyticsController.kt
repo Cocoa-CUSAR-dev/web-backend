@@ -19,9 +19,8 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/analytics/harvest/spatial")
 @Tag(name = "Spatial Analytics", description = "Map-based time-series reports using GeoJSON boundaries")
 class SpatialAnalyticsController(
-    private val spatialService: SpatialHarvestAnalyticsService
+    private val spatialService: SpatialHarvestAnalyticsService,
 ) : BaseController() {
-
     // --- Time Series Endpoints ---
 
     @PreAuthorize("hasAuthority('read:report:all')")

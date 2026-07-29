@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import java.util.UUID
 
 object Question {
-
     data class Entity(
         val questionId: UUID,
         val sectionId: UUID,
@@ -16,7 +15,7 @@ object Question {
         val isMandatory: Boolean,
         val isActive: Boolean,
         val sortOrder: Int,
-        val choices: List<String>?
+        val choices: List<String>?,
     )
 
     object Request {
@@ -27,5 +26,4 @@ object Question {
             val isMandatory: Boolean?,
         )
     }
-
 }

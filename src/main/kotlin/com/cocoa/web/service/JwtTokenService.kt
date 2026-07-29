@@ -12,10 +12,11 @@ import java.util.Date
 @Service
 class JwtTokenService(
     private val jwtProperties: JwtProperties,
-): BaseService() {
-    private val secretKey = Keys.hmacShaKeyFor(
-        jwtProperties.key.toByteArray()
-    )
+) : BaseService() {
+    private val secretKey =
+        Keys.hmacShaKeyFor(
+            jwtProperties.key.toByteArray(),
+        )
 
     fun generate(
         userDetails: UserDetails,
@@ -56,9 +57,10 @@ class JwtTokenService(
 
     private fun getAllClaims(token: String): Claims? {
         return try {
-            val parser = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
+            val parser =
+                Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
 
             parser.parseSignedClaims(token).payload
         } catch (ex: io.jsonwebtoken.ExpiredJwtException) {

@@ -22,14 +22,14 @@ class AnalyticsController(
     private val harvestService: HarvestAnalyticsService,
     private val userService: UserAnalyticsService,
 ) : BaseController() {
-
     // Harvest
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get cumulative time series", description = "Fetch time series harvest of data accumulating from past month within time range.")
+    @Operation(
+        summary = "Get cumulative time series",
+        description = "Fetch time series harvest of data accumulating from past month within time range.",
+    )
     @GetMapping("/harvest/time-series/sum")
-    fun getHarvestTimeSeriesSum(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getHarvestTimeSeriesSum(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getCumulativeSeries(filter)
@@ -37,11 +37,12 @@ class AnalyticsController(
     }
 
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get incremental time series", description = "Fetch time series of harvest data incrementing from past month within time range.")
+    @Operation(
+        summary = "Get incremental time series",
+        description = "Fetch time series of harvest data incrementing from past month within time range.",
+    )
     @GetMapping("/harvest/time-series/delta")
-    fun getHarvestTimeSeriesDelta(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getHarvestTimeSeriesDelta(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getDeltaSeries(filter)
@@ -49,11 +50,12 @@ class AnalyticsController(
     }
 
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get mean time series", description = "Fetch time series of harvest data averaging amount in each month within time range.")
+    @Operation(
+        summary = "Get mean time series",
+        description = "Fetch time series of harvest data averaging amount in each month within time range.",
+    )
     @GetMapping("/harvest/time-series/average")
-    fun getHarvestTimeSeriesAverage(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getHarvestTimeSeriesAverage(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getAverageSeries(filter)
@@ -61,11 +63,12 @@ class AnalyticsController(
     }
 
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get count time series", description = "Fetch time series of harvest data counting record in each month within time range.")
+    @Operation(
+        summary = "Get count time series",
+        description = "Fetch time series of harvest data counting record in each month within time range.",
+    )
     @GetMapping("/harvest/time-series/frequency")
-    fun getHarvestTimeSeriesFrequency(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getHarvestTimeSeriesFrequency(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getFrequencySeries(filter)
@@ -75,9 +78,7 @@ class AnalyticsController(
     @PreAuthorize("hasAuthority('read:report:all')")
     @Operation(summary = "Get total summary", description = "Fetch summary of harvest data for total quantity within time range.")
     @GetMapping("/harvest/summary/total")
-    fun getHarvestSummaryTotal(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
+    fun getHarvestSummaryTotal(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getTotalSummary(filter)
@@ -87,23 +88,21 @@ class AnalyticsController(
     @PreAuthorize("hasAuthority('read:report:all')")
     @Operation(summary = "Get count summary", description = "Fetch summary of harvest data for frequency count within time range.")
     @GetMapping("/harvest/summary/count")
-    fun getHarvestSummaryCount(
-        filter: Analytics.Query.HarvestFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
+    fun getHarvestSummaryCount(filter: Analytics.Query.HarvestFilter): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = harvestService.getFrequencySummary(filter)
         return report.toResponseEntity(HttpStatus.OK)
     }
 
-
     // User
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get cumulative time series", description = "Fetch time series user data accumulating from past month within time range.")
+    @Operation(
+        summary = "Get cumulative time series",
+        description = "Fetch time series user data accumulating from past month within time range.",
+    )
     @GetMapping("/users/time-series/sum")
-    fun getUserTimeSeriesSum(
-        filter: Analytics.Query.UserFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getUserTimeSeriesSum(filter: Analytics.Query.UserFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = userService.getCumulativeSeries(filter)
@@ -111,11 +110,12 @@ class AnalyticsController(
     }
 
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Get incremental time series", description = "Fetch time series user data incrementing from past month within time range.")
+    @Operation(
+        summary = "Get incremental time series",
+        description = "Fetch time series user data incrementing from past month within time range.",
+    )
     @GetMapping("/users/time-series/delta")
-    fun getUserTimeSeriesDelta(
-        filter: Analytics.Query.UserFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
+    fun getUserTimeSeriesDelta(filter: Analytics.Query.UserFilter): ResponseEntity<ApiResponse<Analytics.Report.TimeSeries>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = userService.getDeltaSeries(filter)
@@ -125,9 +125,7 @@ class AnalyticsController(
     @PreAuthorize("hasAuthority('read:report:all')")
     @Operation(summary = "Get count summary", description = "Fetch summary of user data for frequency count within time range.")
     @GetMapping("/users/summary/count")
-    fun getUserSummaryCount(
-        filter: Analytics.Query.UserFilter
-    ): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
+    fun getUserSummaryCount(filter: Analytics.Query.UserFilter): ResponseEntity<ApiResponse<Analytics.Report.Summary>> {
         require(!filter.from.isAfter(filter.to)) { "'from' must not be after 'to'" }
 
         val report = userService.getCountSummary(filter)

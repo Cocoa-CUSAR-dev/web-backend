@@ -21,10 +21,16 @@ object JsonUtils {
     fun read(content: String): JsonNode = objectMapper.readTree(content)
 
     /** Deserialize a string into [T]. */
-    fun <T : Any> readInto(content: String, type: KClass<T>): T = objectMapper.readValue(content, type.java)
+    fun <T : Any> readInto(
+        content: String,
+        type: KClass<T>,
+    ): T = objectMapper.readValue(content, type.java)
 
     /** Deserialize an InputStream into [T]. */
-    fun <T : Any> readInto(inputStream: InputStream, type: KClass<T>): T = objectMapper.readValue(inputStream, type.java)
+    fun <T : Any> readInto(
+        inputStream: InputStream,
+        type: KClass<T>,
+    ): T = objectMapper.readValue(inputStream, type.java)
 
     /** Serialize any object into JSON string. */
     fun write(value: Any): String = objectMapper.writeValueAsString(value)
@@ -41,7 +47,10 @@ object JsonUtils {
         }
     }
 
-    private fun <T : Any> convertToDataClassOrNull(jsonNode: JsonNode, type: KClass<T>): T? {
+    private fun <T : Any> convertToDataClassOrNull(
+        jsonNode: JsonNode,
+        type: KClass<T>,
+    ): T? {
         if (jsonNode.isNull) return null
 
         return try {
@@ -54,7 +63,10 @@ object JsonUtils {
         }
     }
 
-    private fun <T : Any> convertToDataClassList(jsonArrayNode: JsonNode, itemType: KClass<T>): List<T>? {
+    private fun <T : Any> convertToDataClassList(
+        jsonArrayNode: JsonNode,
+        itemType: KClass<T>,
+    ): List<T>? {
         if (jsonArrayNode.isNull) return null
 
         require(jsonArrayNode.isArray) { "JsonNode must be an Array: $jsonArrayNode" }

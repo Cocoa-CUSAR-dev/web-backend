@@ -17,8 +17,7 @@ import java.util.UUID
 @RequestMapping("/tasks")
 class TaskController(
     private val taskService: TaskService,
-): BaseController() {
-
+) : BaseController() {
     @GetMapping
     fun getTasks(): ResponseEntity<ApiResponse<List<Task.Entity>>> {
         val tasks = taskService.getTasks()
@@ -34,5 +33,4 @@ class TaskController(
 
         return task.toResponseEntity((HttpStatus.OK))
     }
-
 }

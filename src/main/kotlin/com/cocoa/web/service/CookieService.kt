@@ -6,7 +6,7 @@ import jakarta.servlet.http.HttpServletRequest
 import org.springframework.stereotype.Service
 
 @Service
-class CookieService: BaseService() {
+class CookieService : BaseService() {
     fun findCookie(
         cookieName: String,
         request: HttpServletRequest,
@@ -27,27 +27,28 @@ class CookieService: BaseService() {
         cookieName: String,
         cookieValue: String,
         cookiePath: String = "/",
-        cookieMaxAge: Int = 24 * 60 * 60, // 24 hours
+        // 24 hours
+        cookieMaxAge: Int = 24 * 60 * 60,
     ): Cookie {
-        val cookie = Cookie(cookieName, cookieValue).apply {
-            isHttpOnly = true
+        val cookie =
+            Cookie(cookieName, cookieValue).apply {
+                isHttpOnly = true
 //            secure = true
-            path = cookiePath
-            maxAge = cookieMaxAge
-        }
+                path = cookiePath
+                maxAge = cookieMaxAge
+            }
 
         return cookie
     }
 
-    fun removeCookie(
-        cookieName: String,
-    ): Cookie {
-        val removedCookie = createCookie(
-            cookieName = cookieName,
-            cookieValue = "",
-            cookiePath = "/",
-            cookieMaxAge = 0,
-        )
+    fun removeCookie(cookieName: String): Cookie {
+        val removedCookie =
+            createCookie(
+                cookieName = cookieName,
+                cookieValue = "",
+                cookiePath = "/",
+                cookieMaxAge = 0,
+            )
 
         return removedCookie
     }

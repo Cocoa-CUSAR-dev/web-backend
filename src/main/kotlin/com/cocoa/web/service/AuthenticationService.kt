@@ -17,8 +17,7 @@ class AuthenticationService(
     private val jwtProperties: JwtProperties,
     private val userService: UserService,
     private val userDetailService: CustomUserDetailService,
-): BaseService() {
-
+) : BaseService() {
     fun getUser(username: String): User.Entity {
         return userService.getUser(username)
     }
@@ -27,23 +26,23 @@ class AuthenticationService(
         return userService.addNewUser(userInfo, requiresPasswordReset = false)
     }
 
-    fun authenticate(
-        request: User.Request.Login,
-    ): Cookie {
-        val authToken = UsernamePasswordAuthenticationToken(
-            request.username,
-            request.password
-        )
+    fun authenticate(request: User.Request.Login): Cookie {
+        val authToken =
+            UsernamePasswordAuthenticationToken(
+                request.username,
+                request.password,
+            )
 
         authManager.authenticate(authToken)
 
         val user = userDetailService.loadUserByUsername(request.username)
         val jwtToken = jwtTokenService.generate(user)
-        val jwtCookie = cookieService.createCookie(
-            cookieName = jwtProperties.name,
-            cookieValue = jwtToken,
-            cookieMaxAge = jwtProperties.accessTokenExpiration.toInt()
-        )
+        val jwtCookie =
+            cookieService.createCookie(
+                cookieName = jwtProperties.name,
+                cookieValue = jwtToken,
+                cookieMaxAge = jwtProperties.accessTokenExpiration.toInt(),
+            )
 
         return jwtCookie
     }

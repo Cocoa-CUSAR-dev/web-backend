@@ -5,7 +5,6 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 object FormResponse {
-
     data class Entity(
         val responseId: UUID,
         val formId: UUID,
@@ -24,5 +23,4 @@ object FormResponse {
         val fullName: String,
         val answer: String,
     )
-
 }

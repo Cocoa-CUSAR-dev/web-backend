@@ -3,10 +3,9 @@ package com.cocoa.web.base
 import org.jooq.DSLContext
 
 abstract class BaseRepository(
-    protected val dsl: DSLContext
+    protected val dsl: DSLContext,
 ) {
-
-//    fun fetchCurrentRunningNumber(tableCode: String): Int {
+    //    fun fetchCurrentRunningNumber(tableCode: String): Int {
 //        val runningNumberRecord = dsl.select(
 //            RUNNING_NUMBER.CURRENT_NUMBER
 //        )

@@ -10,8 +10,7 @@ import java.util.UUID
 @Service
 class TaskService(
     private val taskRepository: TaskRepository,
-): BaseService() {
-
+) : BaseService() {
     fun getTasks(): List<Task.Entity> {
         return taskRepository.fetchTasks()
     }
@@ -20,5 +19,4 @@ class TaskService(
         return taskRepository.fetchTask(taskId)
             ?: throw EntityNotFoundException("Task Not Found")
     }
-
 }

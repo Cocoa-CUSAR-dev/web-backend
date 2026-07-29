@@ -15,7 +15,6 @@ class FormService(
     private val sectionRepository: SectionRepository,
     private val questionRepository: QuestionRepository,
 ) : BaseService() {
-
     fun getForms(): List<Form.Entity> {
         return formRepository.fetchForms()
     }
@@ -35,7 +34,10 @@ class FormService(
             ?: throw EntityNotFoundException("Form not found")
     }
 
-    fun editForm(formId: UUID, request: Form.Request.Edit) {
+    fun editForm(
+        formId: UUID,
+        request: Form.Request.Edit,
+    ) {
         formRepository.findByFormId(formId)
             ?: throw EntityNotFoundException("Form not found")
 
@@ -43,5 +45,4 @@ class FormService(
         sectionRepository.batchUpdate(request.sections)
         questionRepository.batchUpdate(questions)
     }
-
 }

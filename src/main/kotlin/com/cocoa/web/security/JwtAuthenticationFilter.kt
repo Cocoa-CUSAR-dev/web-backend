@@ -5,8 +5,6 @@ import com.cocoa.web.service.CookieService
 import com.cocoa.web.service.CustomUserDetailService
 import com.cocoa.web.service.JwtTokenService
 import jakarta.servlet.FilterChain
-import jakarta.servlet.ServletRequest
-import jakarta.servlet.ServletResponse
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -20,27 +18,28 @@ class JwtAuthenticationFilter(
     private val jwtTokenService: JwtTokenService,
     private val cookieService: CookieService,
     private val userDetailService: CustomUserDetailService,
-): OncePerRequestFilter() {
-
+) : OncePerRequestFilter() {
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
-        filterChain: FilterChain
+        filterChain: FilterChain,
     ) {
         if (isCurrentlyAuthenticated()) {
             filterChain.doFilter(request, response)
             return
         }
 
-        val jwtCookie = cookieService.findCookie(jwtProperties.name, request) ?: run {
-            filterChain.doFilter(request, response)
-            return
-        }
+        val jwtCookie =
+            cookieService.findCookie(jwtProperties.name, request) ?: run {
+                filterChain.doFilter(request, response)
+                return
+            }
 
-        val jwtToken = jwtCookie.value ?: run {
-            filterChain.doFilter(request, response)
-            return
-        }
+        val jwtToken =
+            jwtCookie.value ?: run {
+                filterChain.doFilter(request, response)
+                return
+            }
 
         if (jwtTokenService.isExpired(jwtToken)) {
             response.addCookie(cookieService.removeCookie(jwtProperties.name))
@@ -49,11 +48,12 @@ class JwtAuthenticationFilter(
         }
 
         val username = jwtTokenService.getUsername(jwtToken)
-        val userDetails = username?.let { userDetailService.loadUserByUsername(it) } ?: run {
-            response.addCookie(cookieService.removeCookie(jwtProperties.name))
-            filterChain.doFilter(request, response)
-            return
-        }
+        val userDetails =
+            username?.let { userDetailService.loadUserByUsername(it) } ?: run {
+                response.addCookie(cookieService.removeCookie(jwtProperties.name))
+                filterChain.doFilter(request, response)
+                return
+            }
 
         if (!jwtTokenService.isValid(jwtToken, userDetails)) {
             response.addCookie(cookieService.removeCookie(jwtProperties.name))

@@ -1,6 +1,5 @@
 package com.cocoa.web.jooq
 
-import com.cocoa.web.util.JsonUtils
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
@@ -26,13 +25,12 @@ class JsonNodeBinding : Binding<JSON, JsonNode> {
         val converter = JsonNodeConverter()
 
         class JsonNodeConverter : Converter<JSON, JsonNode> {
-            override fun from(t: JSON?): JsonNode? =
-                t?.let { mapper.readTree(it.toString()) }
+            override fun from(t: JSON?): JsonNode? = t?.let { mapper.readTree(it.toString()) }
 
-            override fun to(u: JsonNode?): JSON? =
-                u?.let { JSON.valueOf(mapper.writeValueAsString(it)) }
+            override fun to(u: JsonNode?): JSON? = u?.let { JSON.valueOf(mapper.writeValueAsString(it)) }
 
             override fun fromType() = JSON::class.java
+
             override fun toType() = JsonNode::class.java
         }
     }
@@ -42,12 +40,14 @@ class JsonNodeBinding : Binding<JSON, JsonNode> {
     @Throws(SQLException::class)
     override fun sql(ctx: BindingSQLContext<JsonNode>) {
         when (ctx.render().paramType()) {
-            ParamType.INLINED -> ctx.render()
-                .visit(DSL.inline(ctx.convert(converter()).value()))
-                .sql("::json")
-            else -> ctx.render()
-                .sql(ctx.variable())
-                .sql("::json")
+            ParamType.INLINED ->
+                ctx.render()
+                    .visit(DSL.inline(ctx.convert(converter()).value()))
+                    .sql("::json")
+            else ->
+                ctx.render()
+                    .sql(ctx.variable())
+                    .sql("::json")
         }
     }
 

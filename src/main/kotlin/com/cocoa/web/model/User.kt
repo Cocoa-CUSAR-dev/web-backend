@@ -5,7 +5,6 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 object User {
-
     data class Entity(
         val userId: UUID,
         val username: String,

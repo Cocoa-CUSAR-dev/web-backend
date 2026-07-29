@@ -11,7 +11,6 @@ import java.util.UUID
 class ResearcherService(
     private val researcherRepository: ResearcherRepository,
 ) : BaseService() {
-
     fun addResearcher(
         userId: UUID,
         researcherInfo: Researcher.Input.Create,
@@ -29,7 +28,10 @@ class ResearcherService(
         return researcherRepository.fetchResearchers(filter)
     }
 
-    fun updateResearcher(userId: UUID, researcherUpdate: Researcher.Input.Update): Int {
+    fun updateResearcher(
+        userId: UUID,
+        researcherUpdate: Researcher.Input.Update,
+    ): Int {
         return researcherRepository
             .patchResearcher(userId, researcherUpdate)
             .orThrowNotFound("Researcher")
@@ -40,5 +42,4 @@ class ResearcherService(
             .deleteResearcher(userId)
             .orThrowNotFound("Researcher")
     }
-
 }

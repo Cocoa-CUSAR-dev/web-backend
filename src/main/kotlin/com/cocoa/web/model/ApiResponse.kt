@@ -26,9 +26,7 @@ fun <T> Exception.toApiResponse(): ApiResponse<T> {
     )
 }
 
-fun <T> T.toResponseEntity(
-    httpStatus: HttpStatus
-): ResponseEntity<ApiResponse<T>> {
+fun <T> T.toResponseEntity(httpStatus: HttpStatus): ResponseEntity<ApiResponse<T>> {
     return ResponseEntity
         .status(httpStatus)
         .body(this.toApiResponse())

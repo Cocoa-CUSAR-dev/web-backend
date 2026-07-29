@@ -8,14 +8,13 @@ import java.time.YearMonth
 
 @Service
 class UserAnalyticsService(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
 ) {
-
     fun getCumulativeSeries(filter: Analytics.Query.UserFilter): Analytics.Report.TimeSeries {
         return buildUserSeries(
             filter = filter,
             title = "Running Total User per Month",
-            isCumulative = true
+            isCumulative = true,
         )
     }
 
@@ -23,7 +22,7 @@ class UserAnalyticsService(
         return buildUserSeries(
             filter = filter,
             title = "New User per Month",
-            isCumulative = false
+            isCumulative = false,
         )
     }
 
@@ -36,47 +35,51 @@ class UserAnalyticsService(
             to = filter.to,
             title = "Total User",
             metadata = emptyMap(),
-            data = Analytics.Report.DataItem(
-                label = label,
-                value = total,
-                unit = "users"
-            )
+            data =
+                Analytics.Report.DataItem(
+                    label = label,
+                    value = total,
+                    unit = "users",
+                ),
         )
     }
 
     private fun buildUserSeries(
         filter: Analytics.Query.UserFilter,
         title: String,
-        isCumulative: Boolean
+        isCumulative: Boolean,
     ): Analytics.Report.TimeSeries {
         val monthRange = generateMonthRange(filter.from, filter.to)
-        val rawData = userRepository.fetchMonthlyDelta(filter)
-            .associate { YearMonth.from(it.month) to it.value }
+        val rawData =
+            userRepository.fetchMonthlyDelta(filter)
+                .associate { YearMonth.from(it.month) to it.value }
 
         val deltaValues = monthRange.map { month -> rawData[month] ?: 0L }
 
-        val finalValues = if (isCumulative) {
-            var runningTotal = 0L
-            deltaValues.map {
-                runningTotal += it
-                runningTotal
+        val finalValues =
+            if (isCumulative) {
+                var runningTotal = 0L
+                deltaValues.map {
+                    runningTotal += it
+                    runningTotal
+                }
+            } else {
+                deltaValues
             }
-        } else {
-            deltaValues
-        }
 
         return Analytics.Report.TimeSeries(
             from = filter.from,
             to = filter.to,
             title = title,
             metadata = emptyMap(),
-            series = listOf(
-                Analytics.Report.SeriesData(
-                    label = filter.roleName ?: "All Users",
-                    values = finalValues.map { it.toDouble() },
-                    unit = "users"
-                )
-            )
+            series =
+                listOf(
+                    Analytics.Report.SeriesData(
+                        label = filter.roleName ?: "All Users",
+                        values = finalValues.map { it.toDouble() },
+                        unit = "users",
+                    ),
+                ),
         )
     }
 }

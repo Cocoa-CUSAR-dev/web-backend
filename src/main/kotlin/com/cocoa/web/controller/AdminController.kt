@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController
 class AdminController(
     private val userService: UserService,
 ) : BaseController() {
-
     @PreAuthorize("hasAuthority('create:user:any')")
     @Operation(summary = "Create a new user", description = "Creates a user with a mandatory password reset flag.")
     @PostMapping("/users")
@@ -32,7 +31,7 @@ class AdminController(
         userService.addNewUser(
             userInfo = request.toCreate(),
             requiresPasswordReset = true,
-            roleName = "researcher"
+            roleName = "researcher",
         )
 
         return "Successfully created user".toResponseEntity(HttpStatus.CREATED)

@@ -2,7 +2,6 @@ package com.cocoa.web.exception
 
 import com.cocoa.web.model.ApiResponse
 import com.cocoa.web.model.toApiResponse
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
-
     @ExceptionHandler(EntityNotFoundException::class)
     fun handleNotFound(ex: EntityNotFoundException) =
         ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -54,7 +52,9 @@ class GlobalExceptionHandler {
             .body(ex.toApiResponse<Unit>())
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException::class)
-    fun handleTypeMismatch(ex: org.springframework.web.method.annotation.MethodArgumentTypeMismatchException): ResponseEntity<ApiResponse<String>> {
+    fun handleTypeMismatch(
+        ex: org.springframework.web.method.annotation.MethodArgumentTypeMismatchException,
+    ): ResponseEntity<ApiResponse<String>> {
         val message = "Invalid parameter value: ${ex.value}. Expected one of the supported types."
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message.toApiResponse())
     }

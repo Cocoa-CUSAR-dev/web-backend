@@ -1,8 +1,8 @@
 package com.cocoa.web.repository
 
 import com.cocoa.generated.agriculture.Tables.FARM
-import com.cocoa.generated.ref.Tables.PROVINCE_CONSTANT
 import com.cocoa.generated.ref.Tables.DISTRICT_CONSTANT
+import com.cocoa.generated.ref.Tables.PROVINCE_CONSTANT
 import com.cocoa.generated.ref.Tables.SUBDISTRICT_CONSTANT
 import com.cocoa.web.base.BaseRepository
 import org.jooq.DSLContext
@@ -11,7 +11,6 @@ import org.springframework.stereotype.Repository
 
 @Repository
 class FarmRepository(dsl: DSLContext) : BaseRepository(dsl) {
-
     fun fetchFarmExportData(): List<Record> {
         return dsl.select(
             FARM.FARM_NAME,
@@ -23,7 +22,7 @@ class FarmRepository(dsl: DSLContext) : BaseRepository(dsl) {
             FARM.CONTACT_NAME,
             FARM.PHONE_NUMBER,
             FARM.LINE,
-            FARM.FACEBOOK
+            FARM.FACEBOOK,
         )
             .from(FARM)
             .leftJoin(PROVINCE_CONSTANT).on(FARM.PROVINCE_ID.eq(PROVINCE_CONSTANT.PROVINCE_ID))
@@ -33,5 +32,4 @@ class FarmRepository(dsl: DSLContext) : BaseRepository(dsl) {
             .fetch()
             .map { it as Record }
     }
-
 }
