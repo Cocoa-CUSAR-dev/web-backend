@@ -3,7 +3,6 @@ package com.cocoa.web.repository
 import com.cocoa.generated.agriculture.Tables.FARM
 import com.cocoa.generated.collection.Tables.HARVEST
 import com.cocoa.generated.collection.Tables.HARVEST_GRADE_DETAIL
-import com.cocoa.generated.storage.Tables.GEO
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Analytics
 import com.cocoa.web.util.dateTrunc
@@ -14,11 +13,16 @@ import org.jooq.Record
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.LocalDate
+import java.util.UUID
 
 @Repository
 class HarvestRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
+    private val geoTable = DSL.table(DSL.name("storage", "geo"))
+    private val geoId = DSL.field(DSL.name("storage", "geo", "geo_id"), UUID::class.java)
+    private val geoGeom = DSL.field(DSL.name("storage", "geo", "geom"))
+
     data class MonthlyGradeRow(
         val month: LocalDate,
         val gradeCode: String,
@@ -143,7 +147,7 @@ class HarvestRepository(
                 conditions.and(
                     DSL.condition(
                         "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
-                        GEO.GEOM, it,
+                        geoGeom, it,
                     ),
                 )
         }
@@ -156,7 +160,7 @@ class HarvestRepository(
             .from(HARVEST)
             .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
             .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-            .join(GEO).on(GEO.GEO_ID.eq(FARM.GEO_ID))
+            .join(geoTable).on(geoId.eq(FARM.GEO_ID))
             .where(conditions)
             .groupBy(monthBucket, HARVEST_GRADE_DETAIL.GRADE_CODE)
             .orderBy(monthBucket.asc())
@@ -205,7 +209,7 @@ class HarvestRepository(
                 conditions.and(
                     DSL.condition(
                         "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
-                        GEO.GEOM, it,
+                        geoGeom, it,
                     ),
                 )
         }
@@ -215,7 +219,7 @@ class HarvestRepository(
                 .from(HARVEST)
                 .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
                 .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-                .join(GEO).on(GEO.GEO_ID.eq(FARM.GEO_ID))
+                .join(geoTable).on(geoId.eq(FARM.GEO_ID))
                 .where(conditions)
                 .fetchOne()
 
