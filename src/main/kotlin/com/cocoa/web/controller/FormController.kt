@@ -23,7 +23,7 @@ class FormController(
     private val formService: FormService,
 ): BaseController() {
 
-    @PreAuthorize("hasAuthority('read:form:all')")
+    @PreAuthorize("hasAuthority('read:form:all') or hasAuthority('read:form:assigned')")
     @Operation(summary = "Get specific form structure")
     @GetMapping("/{formId}")
     fun getForm(
