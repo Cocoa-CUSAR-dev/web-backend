@@ -7,6 +7,7 @@ import com.cocoa.web.model.toResponseEntity
 import com.cocoa.web.service.FormResponseService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -19,6 +20,7 @@ class FormResponseController(
     private val formResponseService: FormResponseService,
 ): BaseService() {
 
+    @PreAuthorize("hasAuthority('read:response:all')")
     @GetMapping
     fun getResponses(
         @PathVariable taskId: UUID,
@@ -28,6 +30,7 @@ class FormResponseController(
         return formResponses.toResponseEntity(HttpStatus.OK)
     }
 
+    @PreAuthorize("hasAuthority('read:response:all')")
     @GetMapping("/{responseId}")
     fun getResponse(
         @PathVariable taskId: UUID,
