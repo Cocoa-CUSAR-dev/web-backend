@@ -9,9 +9,12 @@ import com.cocoa.web.model.Form
 import com.cocoa.web.model.Question
 import com.cocoa.web.model.Section
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Record
+import org.jooq.Table
 import org.springframework.stereotype.Repository
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Repository
 class FormRepository(
@@ -130,15 +133,26 @@ class FormRepository(
             }
     }
 
+    // dsl.meta().tables walks the entire live schema — expensive, and was
+    // being paid once per option field, on every single form request. Which
+    // table/column a field name resolves to only changes via a migration +
+    // restart, so that resolution is safe to cache in-process; the actual
+    // choice rows below are still queried fresh every time.
+    private val refChoiceFieldCache = ConcurrentHashMap<String, Pair<Table<*>, Field<*>>>()
+
     private fun fetchRefChoices(fieldName: String): List<String> {
-        val tableName = fieldName.removeSuffix("_id") + "_constant"
-        val namePrefix = fieldName.removeSuffix("_id") + "_name"
+        val (table, nameField) = refChoiceFieldCache.getOrPut(fieldName) {
+            val tableName = fieldName.removeSuffix("_id") + "_constant"
+            val namePrefix = fieldName.removeSuffix("_id") + "_name"
 
-        val table = dsl.meta().tables.find { it.name == tableName }
-            ?: throw IllegalArgumentException("Unknown ref table: $tableName")
+            val table = dsl.meta().tables.find { it.name == tableName }
+                ?: throw IllegalArgumentException("Unknown ref table: $tableName")
 
-        val nameField = table.fields().firstOrNull { it.name.startsWith(namePrefix) }
-            ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+            val nameField = table.fields().firstOrNull { it.name.startsWith(namePrefix) }
+                ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+
+            table to nameField
+        }
 
         return dsl.select(nameField)
             .from(table)
