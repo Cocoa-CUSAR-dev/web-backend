@@ -63,6 +63,14 @@ class JwtTokenService(
             parser.parseSignedClaims(token).payload
         } catch (ex: io.jsonwebtoken.ExpiredJwtException) {
             null
+        } catch (ex: io.jsonwebtoken.JwtException) {
+            // Malformed, unsupported, or bad-signature tokens — treat the
+            // same as "no valid claims" rather than letting the parser
+            // exception surface as an unhandled 500.
+            null
+        } catch (ex: IllegalArgumentException) {
+            // JJWT throws this for a null/blank/non-JWT-shaped compact string.
+            null
         }
     }
 }
