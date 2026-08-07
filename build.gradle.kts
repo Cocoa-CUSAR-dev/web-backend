@@ -241,5 +241,13 @@ afterEvaluate {
         tasks.named("compileKotlin").configure {
             dependsOn("generateJooq")
         }
+
+        // ktlint also reads build/generated/jooq (it's registered as a Kotlin
+        // source dir by the jOOQ plugin), so it needs the same dependency or
+        // Gradle's task-output validation fails the build.
+        tasks.matching { it.name.startsWith("runKtlintCheckOver") || it.name.startsWith("runKtlintFormatOver") }
+            .configureEach {
+                dependsOn("generateJooq")
+            }
     }
 }

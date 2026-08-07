@@ -17,7 +17,7 @@ jobs:
     # database during the build. Same setup as the `build` job in ci.yml.
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

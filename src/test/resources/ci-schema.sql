@@ -115,6 +115,8 @@ CREATE TABLE collection.harvest_grade_detail (
 );
 
 -- storage
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE TABLE storage.geo (
     geo_id UUID PRIMARY KEY,
     geom GEOMETRY
