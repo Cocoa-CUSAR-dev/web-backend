@@ -60,7 +60,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testRuntimeOnly("com.h2database:h2")
-    testImplementation("com.nhaarman.mockito-kotlin:mockito-kotlin:5.2.1")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
 
     // JOOQ
     implementation("org.springframework.boot:spring-boot-starter-jooq")
