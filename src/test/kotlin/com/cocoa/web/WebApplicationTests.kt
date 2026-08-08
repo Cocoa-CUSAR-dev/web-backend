@@ -25,6 +25,7 @@ import com.cocoa.web.service.FormService
 import com.cocoa.web.service.HarvestAnalyticsService
 import com.cocoa.web.service.ResearcherService
 import com.cocoa.web.service.SpatialHarvestAnalyticsService
+import com.cocoa.web.service.TaskService
 import com.cocoa.web.service.UserAnalyticsService
 import com.cocoa.web.service.UserService
 import com.cocoa.web.service.XlsxService
