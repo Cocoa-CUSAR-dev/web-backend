@@ -4,12 +4,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 
 @SpringBootTest(
     classes = [JwtPropertiesTest.TestConfig::class],
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
 )
+@ActiveProfiles("test")
 @TestPropertySource(
     properties = [
         "jwt.key=test-key-12345678901234567890",
