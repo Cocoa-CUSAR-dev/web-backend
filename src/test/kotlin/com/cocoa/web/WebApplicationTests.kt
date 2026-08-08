@@ -41,6 +41,7 @@ import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
@@ -68,6 +69,18 @@ import java.util.UUID
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+// @TestPropertySource wins over OS environment variables, unlike
+// application-test.properties. CI sets SPRING_DATASOURCE_URL/USERNAME/PASSWORD
+// at the job level for jOOQ codegen, which would otherwise leak into this
+// context and override the H2 settings below with the real Postgres service.
+@TestPropertySource(
+    properties = [
+        "spring.datasource.url=jdbc:h2:mem:cocoa-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+    ],
+)
 class WebApplicationTests {
     @Autowired
     lateinit var mockMvc: MockMvc
