@@ -29,9 +29,22 @@ ENV SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL \
     SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME \
     SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD
 
-RUN echo "SPRING_DATASOURCE_URL is set: $([ -n "$SPRING_DATASOURCE_URL" ] && echo yes || echo NO)" && \
-    echo "SPRING_DATASOURCE_USERNAME is set: $([ -n "$SPRING_DATASOURCE_USERNAME" ] && echo yes || echo NO)" && \
-    echo "SPRING_DATASOURCE_PASSWORD is set: $([ -n "$SPRING_DATASOURCE_PASSWORD" ] && echo yes || echo NO)"
+# Fail loudly and immediately if any of the three didn't arrive, instead of
+# letting the build run for another minute and bury the real cause under a
+# wall of unrelated Kotlin "unresolved reference" errors.
+RUN MISSING=""; \
+    [ -z "$SPRING_DATASOURCE_URL" ] && MISSING="$MISSING SPRING_DATASOURCE_URL"; \
+    [ -z "$SPRING_DATASOURCE_USERNAME" ] && MISSING="$MISSING SPRING_DATASOURCE_USERNAME"; \
+    [ -z "$SPRING_DATASOURCE_PASSWORD" ] && MISSING="$MISSING SPRING_DATASOURCE_PASSWORD"; \
+    if [ -n "$MISSING" ]; then \
+      echo "########################################################"; \
+      echo "# MISSING BUILD ARGS:$MISSING"; \
+      echo "# generateJooq cannot run without these -- check that"; \
+      echo "# they're set on the Render service's Environment tab."; \
+      echo "########################################################"; \
+      exit 1; \
+    fi; \
+    echo "All three datasource build args are present, proceeding."
 
 RUN ./gradlew clean build -x test --no-daemon
 
