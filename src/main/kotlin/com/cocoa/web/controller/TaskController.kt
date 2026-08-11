@@ -7,6 +7,7 @@ import com.cocoa.web.model.toResponseEntity
 import com.cocoa.web.service.TaskService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -18,6 +19,7 @@ import java.util.UUID
 class TaskController(
     private val taskService: TaskService,
 ) : BaseController() {
+    @PreAuthorize("hasAuthority('read:task:all')")
     @GetMapping
     fun getTasks(): ResponseEntity<ApiResponse<List<Task.Entity>>> {
         val tasks = taskService.getTasks()
@@ -25,6 +27,7 @@ class TaskController(
         return tasks.toResponseEntity(HttpStatus.OK)
     }
 
+    @PreAuthorize("hasAuthority('read:task:all')")
     @GetMapping("/{taskId}")
     fun getTask(
         @PathVariable taskId: UUID,

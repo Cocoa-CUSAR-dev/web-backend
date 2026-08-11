@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
@@ -29,34 +30,34 @@ class JwtAuthenticationFilter(
             return
         }
 
-        val jwtCookie =
-            cookieService.findCookie(jwtProperties.name, request) ?: run {
-                filterChain.doFilter(request, response)
-                return
-            }
-
-        val jwtToken =
-            jwtCookie.value ?: run {
+        val (jwtToken, fromCookie) =
+            resolveToken(request) ?: run {
                 filterChain.doFilter(request, response)
                 return
             }
 
         if (jwtTokenService.isExpired(jwtToken)) {
-            response.addCookie(cookieService.removeCookie(jwtProperties.name))
+            if (fromCookie) response.addCookie(cookieService.removeCookie(jwtProperties.name))
             filterChain.doFilter(request, response)
             return
         }
 
         val username = jwtTokenService.getUsername(jwtToken)
         val userDetails =
-            username?.let { userDetailService.loadUserByUsername(it) } ?: run {
-                response.addCookie(cookieService.removeCookie(jwtProperties.name))
+            username?.let {
+                try {
+                    userDetailService.loadUserByUsername(it)
+                } catch (ex: UsernameNotFoundException) {
+                    null
+                }
+            } ?: run {
+                if (fromCookie) response.addCookie(cookieService.removeCookie(jwtProperties.name))
                 filterChain.doFilter(request, response)
                 return
             }
 
         if (!jwtTokenService.isValid(jwtToken, userDetails)) {
-            response.addCookie(cookieService.removeCookie(jwtProperties.name))
+            if (fromCookie) response.addCookie(cookieService.removeCookie(jwtProperties.name))
             filterChain.doFilter(request, response)
             return
         }
@@ -67,6 +68,20 @@ class JwtAuthenticationFilter(
 
     private fun isCurrentlyAuthenticated(): Boolean {
         return SecurityContextHolder.getContext().authentication != null
+    }
+
+    // Cookie is the browser-facing path (web app). The Bearer header is for
+    // service-to-service calls forwarding a caller's own token — e.g. the
+    // mobile backend proxying a farmer's JWT to read their assigned form.
+    private fun resolveToken(request: HttpServletRequest): Pair<String, Boolean>? {
+        val authHeader = request.getHeader("Authorization")
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.removePrefix("Bearer ").trim() to false
+        }
+
+        val jwtCookie = cookieService.findCookie(jwtProperties.name, request) ?: return null
+        val jwtToken = jwtCookie.value ?: return null
+        return jwtToken to true
     }
 
     private fun updateContext(foundUser: UserPrincipal) {

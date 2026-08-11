@@ -3,10 +3,17 @@ package com.cocoa.web.service
 import com.cocoa.web.base.BaseService
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
 @Service
-class CookieService : BaseService() {
+class CookieService(
+    // Secure by default — the JWT cookie must not be sent over plain HTTP once
+    // deployed publicly (BE-1 / M2). Only local dev, which runs over plain
+    // http://localhost, needs to override this to false: browsers never send a
+    // Secure cookie back over HTTP, so hardcoding true would break local login.
+    @Value("\${cookie.secure:true}") private val cookieSecure: Boolean,
+) : BaseService() {
     fun findCookie(
         cookieName: String,
         request: HttpServletRequest,
@@ -33,7 +40,7 @@ class CookieService : BaseService() {
         val cookie =
             Cookie(cookieName, cookieValue).apply {
                 isHttpOnly = true
-//            secure = true
+                secure = cookieSecure
                 path = cookiePath
                 maxAge = cookieMaxAge
             }

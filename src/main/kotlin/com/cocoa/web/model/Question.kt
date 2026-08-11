@@ -15,7 +15,12 @@ object Question {
         val isMandatory: Boolean,
         val isActive: Boolean,
         val sortOrder: Int,
-        val choices: List<String>?,
+        val choices: List<Choice>?,
+    )
+
+    data class Choice(
+        val id: String,
+        val name: String,
     )
 
     object Request {

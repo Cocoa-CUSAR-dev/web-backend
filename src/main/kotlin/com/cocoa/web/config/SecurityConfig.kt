@@ -1,6 +1,7 @@
 package com.cocoa.web.config
 
 import com.cocoa.web.security.JwtAuthenticationFilter
+import com.cocoa.web.security.ServiceKeyFilter
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -27,6 +28,7 @@ class SecurityConfig(
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
+        serviceKeyFilter: ServiceKeyFilter,
     ): DefaultSecurityFilterChain {
         val publicEndpoints =
             arrayOf(
@@ -37,6 +39,10 @@ class SecurityConfig(
                 "/api-docs/**",
                 "/public/**",
                 "/error",
+                // Not actually public -- ServiceKeyFilter is the real gate
+                // (X-Service-Key). Listed here only so Spring Security's own
+                // authorization layer doesn't also demand a farmer/researcher JWT.
+                "/service/**",
             )
 
         return http
@@ -55,6 +61,7 @@ class SecurityConfig(
                 }
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(serviceKeyFilter, UsernamePasswordAuthenticationFilter::class.java)
             .build()
     }
 

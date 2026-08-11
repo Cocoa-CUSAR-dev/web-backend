@@ -9,9 +9,12 @@ import com.cocoa.web.model.Question
 import com.cocoa.web.model.Section
 import com.cocoa.web.util.JsonUtils
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Record
+import org.jooq.Table
 import org.springframework.stereotype.Repository
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Repository
 class FormRepository(
@@ -131,24 +134,44 @@ class FormRepository(
             }
     }
 
-    private fun fetchRefChoices(fieldName: String): List<String> {
-        val tableName = fieldName.removeSuffix("_id") + "_constant"
-        val namePrefix = fieldName.removeSuffix("_id") + "_name"
+    // dsl.meta().tables walks the entire live schema — expensive, and was
+    // being paid once per option field, on every single form request. Which
+    // table/column a field name resolves to only changes via a migration +
+    // restart, so that resolution is safe to cache in-process; the actual
+    // choice rows below are still queried fresh every time.
+    private data class RefChoiceFields(val table: Table<*>, val idField: Field<*>, val nameField: Field<*>)
 
-        val table =
-            dsl.meta().tables.find { it.name == tableName }
-                ?: throw IllegalArgumentException("Unknown ref table: $tableName")
+    private val refChoiceFieldCache = ConcurrentHashMap<String, RefChoiceFields>()
 
-        val nameField =
-            table.fields().firstOrNull { it.name.startsWith(namePrefix) }
-                ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+    private fun fetchRefChoices(fieldName: String): List<Question.Choice> {
+        val (table, idField, nameField) =
+            refChoiceFieldCache.getOrPut(fieldName) {
+                val tableName = fieldName.removeSuffix("_id") + "_constant"
+                val namePrefix = fieldName.removeSuffix("_id") + "_name"
 
-        return dsl.select(nameField)
+                val table =
+                    dsl.meta().tables.find { it.name == tableName }
+                        ?: throw IllegalArgumentException("Unknown ref table: $tableName")
+
+                // fieldName (e.g. plot_id) is also the ref table's own PK column
+                // name by convention, verified against every *_constant table.
+                val idField =
+                    table.fields().firstOrNull { it.name == fieldName }
+                        ?: throw IllegalArgumentException("No id field named '$fieldName' in $tableName")
+
+                val nameField =
+                    table.fields().firstOrNull { it.name.startsWith(namePrefix) }
+                        ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+
+                RefChoiceFields(table, idField, nameField)
+            }
+
+        return dsl.select(idField, nameField)
             .from(table)
-            .fetch { it.get(nameField) as String }
+            .fetch { record -> Question.Choice(id = record.get(idField).toString(), name = record.get(nameField) as String) }
     }
 
-    private fun Record.toQuestionEntity(choicesMap: Map<String, List<String>>): Question.Entity {
+    private fun Record.toQuestionEntity(choicesMap: Map<String, List<Question.Choice>>): Question.Entity {
         val fieldName = this.get(QUESTION.FIELD_NAME)
         val inputType = this.get(QUESTION.INPUT_TYPE)
 
