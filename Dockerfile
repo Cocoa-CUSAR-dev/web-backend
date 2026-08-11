@@ -15,17 +15,25 @@ COPY src src
 
 # `gradle build` runs jOOQ codegen (generateJooq), which needs a live
 # Postgres connection to introspect the real schema before compiling -- see
-# build.gradle.kts's loadEnv(). Render injects each service environment
-# variable as a BuildKit secret of the same name (render.com/docs/docker-secrets),
-# so these are read from /run/secrets/* instead of ARG/ENV -- ARG/ENV would
-# bake the DB password into the image's layer history permanently.
-RUN --mount=type=secret,id=SPRING_DATASOURCE_URL \
-    --mount=type=secret,id=SPRING_DATASOURCE_USERNAME \
-    --mount=type=secret,id=SPRING_DATASOURCE_PASSWORD \
-    export SPRING_DATASOURCE_URL="$(cat /run/secrets/SPRING_DATASOURCE_URL)" && \
-    export SPRING_DATASOURCE_USERNAME="$(cat /run/secrets/SPRING_DATASOURCE_USERNAME)" && \
-    export SPRING_DATASOURCE_PASSWORD="$(cat /run/secrets/SPRING_DATASOURCE_PASSWORD)" && \
-    ./gradlew clean build -x test --no-daemon
+# build.gradle.kts's loadEnv(). Per Render's own docs, env vars set on a
+# Docker-based service ARE auto-translated into build args of the same
+# name -- so these should just need declaring as ARG/ENV. Two earlier
+# attempts (plain ARG, then BuildKit secret mounts) both failed with the
+# exact same "generateJooq never ran" symptom despite the vars being set
+# on the service, so this build prints (without leaking the values) which
+# of the three actually arrive, to stop guessing blind.
+ARG SPRING_DATASOURCE_URL
+ARG SPRING_DATASOURCE_USERNAME
+ARG SPRING_DATASOURCE_PASSWORD
+ENV SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL \
+    SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME \
+    SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD
+
+RUN echo "SPRING_DATASOURCE_URL is set: $([ -n "$SPRING_DATASOURCE_URL" ] && echo yes || echo NO)" && \
+    echo "SPRING_DATASOURCE_USERNAME is set: $([ -n "$SPRING_DATASOURCE_USERNAME" ] && echo yes || echo NO)" && \
+    echo "SPRING_DATASOURCE_PASSWORD is set: $([ -n "$SPRING_DATASOURCE_PASSWORD" ] && echo yes || echo NO)"
+
+RUN ./gradlew clean build -x test --no-daemon
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-jammy AS runtime
