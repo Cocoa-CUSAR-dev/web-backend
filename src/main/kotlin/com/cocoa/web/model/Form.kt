@@ -4,7 +4,6 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 object Form {
-
     data class Entity(
         val formId: UUID,
         val taskId: UUID,
@@ -38,5 +37,4 @@ object Form {
             sections = sections,
         )
     }
-
 }

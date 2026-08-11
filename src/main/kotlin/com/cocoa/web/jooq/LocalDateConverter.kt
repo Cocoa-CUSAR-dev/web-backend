@@ -1,8 +1,8 @@
 package com.cocoa.web.jooq
 
 import org.jooq.impl.AbstractConverter
-import java.time.LocalDate
 import java.sql.Date
+import java.time.LocalDate
 
 class LocalDateConverter : AbstractConverter<Date, LocalDate>(Date::class.java, LocalDate::class.java) {
     override fun from(o: Date?): LocalDate? {

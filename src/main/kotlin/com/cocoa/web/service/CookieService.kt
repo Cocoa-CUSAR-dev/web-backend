@@ -13,7 +13,7 @@ class CookieService(
     // http://localhost, needs to override this to false: browsers never send a
     // Secure cookie back over HTTP, so hardcoding true would break local login.
     @Value("\${cookie.secure:true}") private val cookieSecure: Boolean,
-): BaseService() {
+) : BaseService() {
     fun findCookie(
         cookieName: String,
         request: HttpServletRequest,
@@ -34,27 +34,28 @@ class CookieService(
         cookieName: String,
         cookieValue: String,
         cookiePath: String = "/",
-        cookieMaxAge: Int = 24 * 60 * 60, // 24 hours
+        // 24 hours
+        cookieMaxAge: Int = 24 * 60 * 60,
     ): Cookie {
-        val cookie = Cookie(cookieName, cookieValue).apply {
-            isHttpOnly = true
-            secure = cookieSecure
-            path = cookiePath
-            maxAge = cookieMaxAge
-        }
+        val cookie =
+            Cookie(cookieName, cookieValue).apply {
+                isHttpOnly = true
+                secure = cookieSecure
+                path = cookiePath
+                maxAge = cookieMaxAge
+            }
 
         return cookie
     }
 
-    fun removeCookie(
-        cookieName: String,
-    ): Cookie {
-        val removedCookie = createCookie(
-            cookieName = cookieName,
-            cookieValue = "",
-            cookiePath = "/",
-            cookieMaxAge = 0,
-        )
+    fun removeCookie(cookieName: String): Cookie {
+        val removedCookie =
+            createCookie(
+                cookieName = cookieName,
+                cookieValue = "",
+                cookiePath = "/",
+                cookieMaxAge = 0,
+            )
 
         return removedCookie
     }

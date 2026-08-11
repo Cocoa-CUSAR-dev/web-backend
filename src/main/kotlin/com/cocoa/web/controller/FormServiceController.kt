@@ -17,14 +17,19 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/service/forms")
-@Tag(name = "Chatbot Service", description = "Trusted first-party service routes, gated by X-Service-Key (see ServiceKeyFilter), not a farmer/researcher JWT")
+@Tag(
+    name = "Chatbot Service",
+    description = "Trusted first-party service routes, gated by X-Service-Key (see ServiceKeyFilter), not a farmer/researcher JWT",
+)
 class FormServiceController(
     private val formService: FormService,
-): BaseController() {
-
+) : BaseController() {
     @Operation(
         summary = "Get specific form structure (service-to-service)",
-        description = "Same data as GET /forms/{formId}, for callers with no farmer session to forward a JWT from (e.g. the chatbot). Exposes form structure only, never a farmer's own answers, so no per-caller ownership check is needed here.",
+        description =
+            "Same data as GET /forms/{formId}, for callers with no farmer session to forward a JWT from " +
+                "(e.g. the chatbot). Exposes form structure only, never a farmer's own answers, so no " +
+                "per-caller ownership check is needed here.",
     )
     @GetMapping("/{formId}")
     fun getForm(

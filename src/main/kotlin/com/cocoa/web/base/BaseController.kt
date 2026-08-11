@@ -10,7 +10,7 @@ abstract class BaseController {
         val securityContext = SecurityContextHolder.getContext()
         return securityContext.authentication
     }
-    
+
     protected fun getAuthenticatedUser(): User.Entity {
         val userPrincipal = getAuthentication().principal as UserPrincipal
         return userPrincipal.getUser()

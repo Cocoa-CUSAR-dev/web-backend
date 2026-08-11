@@ -21,8 +21,7 @@ import java.util.UUID
 @RequestMapping("/forms")
 class FormController(
     private val formService: FormService,
-): BaseController() {
-
+) : BaseController() {
     @PreAuthorize("hasAuthority('read:form:all') or hasAuthority('read:form:assigned')")
     @Operation(summary = "Get specific form structure")
     @GetMapping("/{formId}")

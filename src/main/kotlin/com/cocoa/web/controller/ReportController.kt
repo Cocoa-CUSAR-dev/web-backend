@@ -23,11 +23,11 @@ import java.time.format.DateTimeFormatter
 @Tag(name = "Reports", description = "Endpoints for generating and downloading data exports")
 class ReportController(
     private val xlsxService: XlsxService,
-): BaseController() {
-
+) : BaseController() {
     enum class SheetType {
         FARM,
-        HARVEST;
+        HARVEST,
+        ;
 
         companion object {
             fun fromString(value: String) = entries.find { it.name.equals(value, ignoreCase = true) }
@@ -35,23 +35,29 @@ class ReportController(
     }
 
     @PreAuthorize("hasAuthority('read:report:all')")
-    @Operation(summary = "Download raw data as Excel", description = "Generates an .xlsx file containing the specified data sheets. If no sheets are provided, all available sheets are included.",)
+    @Operation(
+        summary = "Download raw data as Excel",
+        description =
+            "Generates an .xlsx file containing the specified data sheets. " +
+                "If no sheets are provided, all available sheets are included.",
+    )
     @GetMapping("/raw-data/download")
     fun downloadRawData(
         @RequestParam(name = "sheets", required = false)
         @Parameter(
             description = "Sheet types to include in the export",
-            schema = Schema(implementation = SheetType::class)
+            schema = Schema(implementation = SheetType::class),
         )
-        requestedSheets: List<SheetType>?
+        requestedSheets: List<SheetType>?,
     ): ResponseEntity<ByteArray> {
         val activeSheets = requestedSheets ?: SheetType.entries
-        val builders = activeSheets.map { type ->
-            when (type) {
-                SheetType.FARM -> xlsxService.farmSheetBuilder()
-                SheetType.HARVEST -> xlsxService.harvestSheetBuilder()
+        val builders =
+            activeSheets.map { type ->
+                when (type) {
+                    SheetType.FARM -> xlsxService.farmSheetBuilder()
+                    SheetType.HARVEST -> xlsxService.harvestSheetBuilder()
+                }
             }
-        }
 
         if (builders.isEmpty()) {
             throw UnsupportedSheetException()
@@ -62,10 +68,9 @@ class ReportController(
         val xlsxSheet = xlsxService.buildXlsxFile(*builders.toTypedArray())
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=${fileName}_${timestamp}.xlsx")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=${fileName}_$timestamp.xlsx")
             .contentLength(xlsxSheet.size.toLong())
             .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .body(xlsxSheet)
     }
-
 }

@@ -16,7 +16,6 @@ import org.springframework.security.crypto.password.PasswordEncoder
 @Configuration
 @EnableConfigurationProperties(JwtProperties::class, ChatbotServiceProperties::class)
 class AppConfig {
-
     @Bean
     fun userDetailService(userRepository: UserRepository): UserDetailsService {
         return CustomUserDetailService(userRepository)
@@ -39,5 +38,4 @@ class AppConfig {
     fun authenticationManager(config: AuthenticationConfiguration): AuthenticationManager {
         return config.authenticationManager
     }
-
 }

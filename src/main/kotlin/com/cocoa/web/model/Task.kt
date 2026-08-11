@@ -4,7 +4,6 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 object Task {
-
     data class Entity(
         val taskId: UUID,
         val title: String,
@@ -13,5 +12,4 @@ object Task {
         val openAt: LocalDateTime,
         val closeAt: LocalDateTime,
     )
-
 }

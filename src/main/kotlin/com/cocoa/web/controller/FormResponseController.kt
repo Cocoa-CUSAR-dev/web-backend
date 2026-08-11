@@ -18,8 +18,7 @@ import java.util.UUID
 @RequestMapping("/tasks/{taskId}/responses")
 class FormResponseController(
     private val formResponseService: FormResponseService,
-): BaseService() {
-
+) : BaseService() {
     @PreAuthorize("hasAuthority('read:response:all')")
     @GetMapping
     fun getResponses(
@@ -36,12 +35,12 @@ class FormResponseController(
         @PathVariable taskId: UUID,
         @PathVariable responseId: UUID,
     ): ResponseEntity<ApiResponse<FormResponse.Entity>> {
-        val formResponse = formResponseService.getFormResponse(
-            taskId = taskId,
-            formResponseId = responseId,
-        )
+        val formResponse =
+            formResponseService.getFormResponse(
+                taskId = taskId,
+                formResponseId = responseId,
+            )
 
         return formResponse.toResponseEntity(HttpStatus.OK)
     }
-
 }

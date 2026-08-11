@@ -1,43 +1,48 @@
 package com.cocoa.web.repository
 
+import com.cocoa.generated.agriculture.Tables.FARM
 import com.cocoa.generated.collection.Tables.HARVEST
 import com.cocoa.generated.collection.Tables.HARVEST_GRADE_DETAIL
-import com.cocoa.generated.agriculture.Tables.FARM
-import com.cocoa.generated.storage.Tables.GEO
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Analytics
 import com.cocoa.web.util.dateTrunc
 import com.cocoa.web.util.withDateRange
 import org.jooq.AggregateFunction
 import org.jooq.DSLContext
-import org.jooq.impl.DSL
 import org.jooq.Record
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.LocalDate
+import java.util.UUID
 
 @Repository
 class HarvestRepository(
-    dsl: DSLContext
+    dsl: DSLContext,
 ) : BaseRepository(dsl) {
+    private val geoTable = DSL.table(DSL.name("storage", "geo"))
+    private val geoId = DSL.field(DSL.name("storage", "geo", "geo_id"), UUID::class.java)
+    private val geoGeom = DSL.field(DSL.name("storage", "geo", "geom"))
 
     data class MonthlyGradeRow(
         val month: LocalDate,
         val gradeCode: String,
-        val value: Double
+        val value: Double,
     )
 
     data class GradeValueRow(
         val gradeCode: String,
-        val value: Double
+        val value: Double,
     )
 
     // Location based
     fun fetchMonthlyDelta(filter: Analytics.Query.HarvestFilter): List<MonthlyGradeRow> {
         return fetchMonthlyMetric(filter, DSL.sum(HARVEST_GRADE_DETAIL.QUANTITY_KG))
     }
+
     fun fetchMonthlyAvg(filter: Analytics.Query.HarvestFilter): List<MonthlyGradeRow> {
         return fetchMonthlyMetric(filter, DSL.avg(HARVEST_GRADE_DETAIL.QUANTITY_KG))
     }
+
     fun fetchMonthlyFreq(filter: Analytics.Query.HarvestFilter): List<MonthlyGradeRow> {
         return fetchMonthlyMetric(filter, DSL.count())
     }
@@ -54,9 +59,11 @@ class HarvestRepository(
     fun fetchSpatialMonthlyDelta(filter: Analytics.Query.SpatialHarvestFilter): List<MonthlyGradeRow> {
         return fetchSpatialMonthlyMetric(filter, DSL.sum(HARVEST_GRADE_DETAIL.QUANTITY_KG))
     }
+
     fun fetchSpatialMonthlyAvg(filter: Analytics.Query.SpatialHarvestFilter): List<MonthlyGradeRow> {
         return fetchSpatialMonthlyMetric(filter, DSL.avg(HARVEST_GRADE_DETAIL.QUANTITY_KG))
     }
+
     fun fetchSpatialMonthlyFreq(filter: Analytics.Query.SpatialHarvestFilter): List<MonthlyGradeRow> {
         return fetchSpatialMonthlyMetric(filter, DSL.count())
     }
@@ -81,7 +88,7 @@ class HarvestRepository(
             HARVEST_GRADE_DETAIL.IS_SPROUT,
             HARVEST_GRADE_DETAIL.IS_DRY,
             HARVEST_GRADE_DETAIL.IS_SHRIVELED,
-            HARVEST_GRADE_DETAIL.CUT_TEST_RESULT
+            HARVEST_GRADE_DETAIL.CUT_TEST_RESULT,
         )
             .from(HARVEST)
             .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
@@ -110,7 +117,7 @@ class HarvestRepository(
         return dsl.select(
             monthBucket.`as`("month"),
             HARVEST_GRADE_DETAIL.GRADE_CODE,
-            metricField.`as`("value")
+            metricField.`as`("value"),
         )
             .from(HARVEST)
             .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
@@ -122,7 +129,7 @@ class HarvestRepository(
                 MonthlyGradeRow(
                     month = r.get("month", LocalDate::class.java),
                     gradeCode = r.get(HARVEST_GRADE_DETAIL.GRADE_CODE),
-                    value = r.get("value", Number::class.java).toDouble()
+                    value = r.get("value", Number::class.java).toDouble(),
                 )
             }
     }
@@ -135,20 +142,25 @@ class HarvestRepository(
         var conditions = DSL.noCondition().withDateRange(filter, HARVEST.HARVEST_DATE)
 
         filter.gradeCode?.let { conditions = conditions.and(HARVEST_GRADE_DETAIL.GRADE_CODE.eq(it)) }
-        filter.geoJson?.let { conditions = conditions.and(DSL.condition(
-            "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
-            GEO.GEOM, it
-        ))}
+        filter.geoJson?.let {
+            conditions =
+                conditions.and(
+                    DSL.condition(
+                        "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
+                        geoGeom, it,
+                    ),
+                )
+        }
 
         return dsl.select(
             monthBucket.`as`("month"),
             HARVEST_GRADE_DETAIL.GRADE_CODE,
-            metricField.`as`("value")
+            metricField.`as`("value"),
         )
             .from(HARVEST)
             .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
             .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-            .join(GEO).on(GEO.GEO_ID.eq(FARM.GEO_ID))
+            .join(geoTable).on(geoId.eq(FARM.GEO_ID))
             .where(conditions)
             .groupBy(monthBucket, HARVEST_GRADE_DETAIL.GRADE_CODE)
             .orderBy(monthBucket.asc())
@@ -156,7 +168,7 @@ class HarvestRepository(
                 MonthlyGradeRow(
                     month = r.get("month", LocalDate::class.java),
                     gradeCode = r.get(HARVEST_GRADE_DETAIL.GRADE_CODE),
-                    value = r.get("value", Number::class.java).toDouble()
+                    value = r.get("value", Number::class.java).toDouble(),
                 )
             }
     }
@@ -164,7 +176,7 @@ class HarvestRepository(
     // scalar
     private fun <T : Number> fetchScalarMetric(
         filter: Analytics.Query.HarvestFilter,
-        metricField: AggregateFunction<T>
+        metricField: AggregateFunction<T>,
     ): Number {
         var conditions = DSL.noCondition().withDateRange(filter, HARVEST.HARVEST_DATE)
 
@@ -174,35 +186,42 @@ class HarvestRepository(
         filter.farmId?.let { conditions = conditions.and(HARVEST.FARM_ID.eq(it)) }
         filter.gradeCode?.let { conditions = conditions.and(HARVEST_GRADE_DETAIL.GRADE_CODE.eq(it)) }
 
-        val record = dsl.select(metricField)
-            .from(HARVEST)
-            .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
-            .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-            .where(conditions)
-            .fetchOne()
+        val record =
+            dsl.select(metricField)
+                .from(HARVEST)
+                .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
+                .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
+                .where(conditions)
+                .fetchOne()
 
         return (record?.get(0) as? Number) ?: 0
     }
 
-    private fun <T: Number> fetchSpatialScalarMetric(
+    private fun <T : Number> fetchSpatialScalarMetric(
         filter: Analytics.Query.SpatialHarvestFilter,
-        metricField: AggregateFunction<T>
+        metricField: AggregateFunction<T>,
     ): Number {
         var conditions = DSL.noCondition().withDateRange(filter, HARVEST.HARVEST_DATE)
 
         filter.gradeCode?.let { conditions = conditions.and(HARVEST_GRADE_DETAIL.GRADE_CODE.eq(it)) }
-        filter.geoJson?.let { conditions = conditions.and(DSL.condition(
-            "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
-            GEO.GEOM, it
-        ))}
+        filter.geoJson?.let {
+            conditions =
+                conditions.and(
+                    DSL.condition(
+                        "ST_Intersects({0}, ST_SetSRID(ST_GeomFromGeoJSON({1}), 4326))",
+                        geoGeom, it,
+                    ),
+                )
+        }
 
-        val record = dsl.select(metricField)
-            .from(HARVEST)
-            .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
-            .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-            .join(GEO).on(GEO.GEO_ID.eq(FARM.GEO_ID))
-            .where(conditions)
-            .fetchOne()
+        val record =
+            dsl.select(metricField)
+                .from(HARVEST)
+                .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
+                .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
+                .join(geoTable).on(geoId.eq(FARM.GEO_ID))
+                .where(conditions)
+                .fetchOne()
 
         return (record?.get(0) as? Number) ?: 0
     }

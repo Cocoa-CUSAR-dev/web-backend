@@ -1,13 +1,13 @@
 package com.cocoa.web.repository
 
-import com.cocoa.generated.form.Tables.TASK_FORM
-import com.cocoa.generated.form.Tables.SECTION
 import com.cocoa.generated.form.Tables.QUESTION
+import com.cocoa.generated.form.Tables.SECTION
 import com.cocoa.generated.form.Tables.TASK_FORM
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Question
 import com.cocoa.web.model.Section
+import com.cocoa.web.util.JsonUtils
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
@@ -20,45 +20,43 @@ import java.util.concurrent.ConcurrentHashMap
 class FormRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
-
-    fun findByFormId(
-        formId: UUID,
-    ): Form.Entity? {
-        val formRecord = dsl.selectFrom(TASK_FORM)
-            .where(TASK_FORM.FORM_ID.eq(formId))
-            .fetchOne()
+    fun findByFormId(formId: UUID): Form.Entity? {
+        val formRecord =
+            dsl.selectFrom(TASK_FORM)
+                .where(TASK_FORM.FORM_ID.eq(formId))
+                .fetchOne()
 
         return formRecord?.toFormEntity()
     }
 
-    fun findByTaskId(
-        taskId: UUID,
-    ): Form.Entity? {
-        val formRecord = dsl.selectFrom(TASK_FORM)
-            .where(TASK_FORM.TASK_ID.eq(taskId))
-            .fetchOne()
+    fun findByTaskId(taskId: UUID): Form.Entity? {
+        val formRecord =
+            dsl.selectFrom(TASK_FORM)
+                .where(TASK_FORM.TASK_ID.eq(taskId))
+                .fetchOne()
 
         return formRecord?.toFormEntity()
     }
 
     fun fetchForms(): List<Form.Entity> {
-        val formRecords = dsl.selectDistinct(
-            TASK_FORM.FORM_ID,
-            TASK_FORM.TASK_ID,
-            TASK_FORM.TITLE,
-            TASK_FORM.CONTENT,
-            TASK_FORM.HANDLER,
-            TASK_FORM.IS_MULTIPLE_SUBMIT,
-            TASK_FORM.DESCRIPTION,
-            TASK_FORM.CREATED_AT,
-        )
-            .from(TASK_FORM)
-            .whereExists(
-                dsl.selectOne()
-                    .from(SECTION)
-                    .where(SECTION.FORM_ID.eq(TASK_FORM.FORM_ID))
+        val formRecords =
+            dsl.selectDistinct(
+                TASK_FORM.FORM_ID,
+                TASK_FORM.TASK_ID,
+                TASK_FORM.TITLE,
+                TASK_FORM.CONTENT,
+                TASK_FORM.HANDLER,
+                TASK_FORM.IS_MULTIPLE_SUBMIT,
+                TASK_FORM.DESCRIPTION,
+                TASK_FORM.CREATED_AT,
             )
-            .fetch()
+                .from(TASK_FORM)
+                .whereExists(
+                    dsl.selectOne()
+                        .from(SECTION)
+                        .where(SECTION.FORM_ID.eq(TASK_FORM.FORM_ID)),
+                )
+                .fetch()
 
         return formRecords.map { it.toFormEntity() }
     }
@@ -78,25 +76,25 @@ class FormRepository(
     // Helper Functions
     private fun queryFormRecords(formId: UUID): List<Record> {
         return dsl.select(
-                TASK_FORM.FORM_ID,
-                TASK_FORM.TITLE,
-                TASK_FORM.DESCRIPTION,
-                SECTION.SECTION_ID,
-                SECTION.TITLE,
-                SECTION.DESCRIPTION,
-                SECTION.SORT_ORDER,
-                SECTION.IS_ACTIVE,
-                QUESTION.QUESTION_ID,
-                QUESTION.SECTION_ID,
-                QUESTION.LABEL,
-                QUESTION.INPUT_TYPE,
-                QUESTION.DESCRIPTION,
-                QUESTION.FIELD_NAME,
-                QUESTION.DEFAULT_VALUE,
-                QUESTION.IS_MANDATORY,
-                QUESTION.IS_ACTIVE,
-                QUESTION.SORT_ORDER,
-            )
+            TASK_FORM.FORM_ID,
+            TASK_FORM.TITLE,
+            TASK_FORM.DESCRIPTION,
+            SECTION.SECTION_ID,
+            SECTION.TITLE,
+            SECTION.DESCRIPTION,
+            SECTION.SORT_ORDER,
+            SECTION.IS_ACTIVE,
+            QUESTION.QUESTION_ID,
+            QUESTION.SECTION_ID,
+            QUESTION.LABEL,
+            QUESTION.INPUT_TYPE,
+            QUESTION.DESCRIPTION,
+            QUESTION.FIELD_NAME,
+            QUESTION.DEFAULT_VALUE,
+            QUESTION.IS_MANDATORY,
+            QUESTION.IS_ACTIVE,
+            QUESTION.SORT_ORDER,
+        )
             .from(TASK_FORM)
             .leftJoin(SECTION).on(SECTION.FORM_ID.eq(TASK_FORM.FORM_ID))
             .leftJoin(QUESTION).on(QUESTION.SECTION_ID.eq(SECTION.SECTION_ID))
@@ -106,14 +104,16 @@ class FormRepository(
     }
 
     private fun buildSections(records: List<Record>): List<Section.Detail> {
-        val optionFieldNames = records
-            .filter { it.get(QUESTION.INPUT_TYPE) == "OPTION" && it.get(QUESTION.FIELD_NAME) != null }
-            .map { it.get(QUESTION.FIELD_NAME) }
-            .distinct()
+        val optionFieldNames =
+            records
+                .filter { it.get(QUESTION.INPUT_TYPE) == "OPTION" && it.get(QUESTION.FIELD_NAME) != null }
+                .map { it.get(QUESTION.FIELD_NAME) }
+                .distinct()
 
-        val choicesMap = optionFieldNames.associateWith { fieldName ->
-            fetchRefChoices(fieldName)
-        }
+        val choicesMap =
+            optionFieldNames.associateWith { fieldName ->
+                fetchRefChoices(fieldName)
+            }
 
         return records
             .groupBy { it.get(SECTION.SECTION_ID) }
@@ -126,9 +126,10 @@ class FormRepository(
                     description = first.get(SECTION.DESCRIPTION),
                     sortOrder = first.get(SECTION.SORT_ORDER),
                     isActive = first.get(SECTION.IS_ACTIVE),
-                    questions = sectionRecords
-                        .filter { it.get(QUESTION.QUESTION_ID) != null }
-                        .map { it.toQuestionEntity(choicesMap) },
+                    questions =
+                        sectionRecords
+                            .filter { it.get(QUESTION.QUESTION_ID) != null }
+                            .map { it.toQuestionEntity(choicesMap) },
                 )
             }
     }
@@ -143,23 +144,27 @@ class FormRepository(
     private val refChoiceFieldCache = ConcurrentHashMap<String, RefChoiceFields>()
 
     private fun fetchRefChoices(fieldName: String): List<Question.Choice> {
-        val (table, idField, nameField) = refChoiceFieldCache.getOrPut(fieldName) {
-            val tableName = fieldName.removeSuffix("_id") + "_constant"
-            val namePrefix = fieldName.removeSuffix("_id") + "_name"
+        val (table, idField, nameField) =
+            refChoiceFieldCache.getOrPut(fieldName) {
+                val tableName = fieldName.removeSuffix("_id") + "_constant"
+                val namePrefix = fieldName.removeSuffix("_id") + "_name"
 
-            val table = dsl.meta().tables.find { it.name == tableName }
-                ?: throw IllegalArgumentException("Unknown ref table: $tableName")
+                val table =
+                    dsl.meta().tables.find { it.name == tableName }
+                        ?: throw IllegalArgumentException("Unknown ref table: $tableName")
 
-            // fieldName (e.g. plot_id) is also the ref table's own PK column
-            // name by convention, verified against every *_constant table.
-            val idField = table.fields().firstOrNull { it.name == fieldName }
-                ?: throw IllegalArgumentException("No id field named '$fieldName' in $tableName")
+                // fieldName (e.g. plot_id) is also the ref table's own PK column
+                // name by convention, verified against every *_constant table.
+                val idField =
+                    table.fields().firstOrNull { it.name == fieldName }
+                        ?: throw IllegalArgumentException("No id field named '$fieldName' in $tableName")
 
-            val nameField = table.fields().firstOrNull { it.name.startsWith(namePrefix) }
-                ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+                val nameField =
+                    table.fields().firstOrNull { it.name.startsWith(namePrefix) }
+                        ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
 
-            RefChoiceFields(table, idField, nameField)
-        }
+                RefChoiceFields(table, idField, nameField)
+            }
 
         return dsl.select(idField, nameField)
             .from(table)
@@ -177,15 +182,16 @@ class FormRepository(
             inputType = inputType,
             description = this.get(QUESTION.DESCRIPTION),
             fieldName = fieldName,
-            defaultValue = this.get(QUESTION.DEFAULT_VALUE),
+            defaultValue = this.get(QUESTION.DEFAULT_VALUE)?.let(JsonUtils::read),
             isMandatory = this.get(QUESTION.IS_MANDATORY),
             isActive = this.get(QUESTION.IS_ACTIVE),
             sortOrder = this.get(QUESTION.SORT_ORDER),
-            choices = if (inputType == "OPTION") {
-                fieldName?.let { choicesMap[it] } ?: emptyList()
-            } else {
-                null
-            },
+            choices =
+                if (inputType == "OPTION") {
+                    fieldName?.let { choicesMap[it] } ?: emptyList()
+                } else {
+                    null
+                },
         )
     }
 
@@ -216,5 +222,4 @@ class FormRepository(
 //            sortOrder = this.get(QUESTION.SORT_ORDER),
 //        )
 //    }
-
 }

@@ -2,7 +2,6 @@ package com.cocoa.web.repository
 
 import com.cocoa.generated.form.Tables.TASK
 import com.cocoa.web.base.BaseRepository
-import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Task
 import org.jooq.DSLContext
 import org.jooq.Record
@@ -12,8 +11,7 @@ import java.util.UUID
 @Repository
 class TaskRepository(
     dsl: DSLContext,
-): BaseRepository(dsl) {
-
+) : BaseRepository(dsl) {
     fun fetchTasks(): List<Task.Entity> {
         val records = dsl.selectFrom(TASK).fetch()
 
@@ -21,9 +19,10 @@ class TaskRepository(
     }
 
     fun fetchTask(taskId: UUID): Task.Entity? {
-        val record = dsl.selectFrom(TASK)
-            .where(TASK.TASK_ID.eq(taskId))
-            .fetchOne()
+        val record =
+            dsl.selectFrom(TASK)
+                .where(TASK.TASK_ID.eq(taskId))
+                .fetchOne()
 
         return record?.toTaskEntity()
     }
@@ -39,5 +38,4 @@ class TaskRepository(
             closeAt = this.get(TASK.CLOSE_AT),
         )
     }
-
 }

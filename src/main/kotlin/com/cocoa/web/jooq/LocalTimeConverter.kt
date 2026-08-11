@@ -1,8 +1,8 @@
 package com.cocoa.web.jooq
 
+import org.jooq.impl.AbstractConverter
 import java.sql.Time
 import java.time.LocalTime
-import org.jooq.impl.AbstractConverter
 
 class LocalTimeConverter : AbstractConverter<Time, LocalTime>(Time::class.java, LocalTime::class.java) {
     override fun from(o: Time?): LocalTime? {

@@ -7,8 +7,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("")
-class TestController: BaseController() {
-
+class TestController : BaseController() {
     @GetMapping("/public/test")
     fun publicRoute(): String {
         return "This is Public route"

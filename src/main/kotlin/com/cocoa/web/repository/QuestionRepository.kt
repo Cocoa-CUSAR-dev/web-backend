@@ -4,15 +4,12 @@ import com.cocoa.generated.form.Tables.QUESTION
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Question
 import org.jooq.DSLContext
-import org.jooq.Record
 import org.springframework.stereotype.Repository
-import java.util.UUID
 
 @Repository
 class QuestionRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
-
     fun batchUpdate(questions: List<Question.Request.Edit>) {
         dsl.batched { ctx ->
             questions.forEach { question ->
@@ -24,5 +21,4 @@ class QuestionRepository(
             }
         }
     }
-
 }

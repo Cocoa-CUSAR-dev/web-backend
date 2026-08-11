@@ -17,7 +17,6 @@ import java.util.UUID
 class ResearcherRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
-
     fun insertResearcher(
         userId: UUID,
         researcherInfo: Researcher.Input.Create,
@@ -38,16 +37,17 @@ class ResearcherRepository(
                     transactionDsl
                         .select(DSL.value(userId), ROLE.ROLE_ID)
                         .from(ROLE)
-                        .where(ROLE.ROLE_NAME.eq("researcher"))
+                        .where(ROLE.ROLE_NAME.eq("researcher")),
                 )
                 .execute()
         }
     }
 
     fun findByUserId(userId: UUID): Researcher.Entity? {
-        val record = dsl.selectFrom(RESEARCHER)
-            .where(RESEARCHER.USER_ID.eq(userId))
-            .fetchOne()
+        val record =
+            dsl.selectFrom(RESEARCHER)
+                .where(RESEARCHER.USER_ID.eq(userId))
+                .fetchOne()
 
         return record?.toEntity()
     }
@@ -60,16 +60,20 @@ class ResearcherRepository(
         filter.organization?.let { conditions.add(RESEARCHER.ORGANIZATION.eq(it)) }
 
         val query = dsl.selectFrom(RESEARCHER)
-        val records = if (conditions.isNotEmpty()) {
-            query.where(conditions).fetch()
-        } else {
-            query.fetch()
-        }
+        val records =
+            if (conditions.isNotEmpty()) {
+                query.where(conditions).fetch()
+            } else {
+                query.fetch()
+            }
 
         return records.map { it.toEntity() }
     }
 
-    fun patchResearcher(userId: UUID, researcherUpdate: Researcher.Input.Update): Int {
+    fun patchResearcher(
+        userId: UUID,
+        researcherUpdate: Researcher.Input.Update,
+    ): Int {
         val updates = mutableMapOf<Field<*>, Any>()
 
         researcherUpdate.firstName?.let { updates[RESEARCHER.FIRST_NAME] = it }
@@ -107,5 +111,4 @@ class ResearcherRepository(
             organization = this.get(RESEARCHER.ORGANIZATION),
         )
     }
-
 }

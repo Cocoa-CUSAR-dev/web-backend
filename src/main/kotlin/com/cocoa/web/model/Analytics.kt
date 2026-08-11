@@ -6,9 +6,7 @@ import java.time.YearMonth
 import java.util.UUID
 
 object Analytics {
-
     object Query {
-
         interface TimeRangeFilter {
             @get:Parameter(description = "Start month", example = "2026-01")
             @get:Schema(type = "string", pattern = "yyyy-MM")
@@ -22,8 +20,10 @@ object Analytics {
         interface GeoFilter {
             @get:Schema(description = "Province UUID")
             val provinceId: UUID?
+
             @get:Schema(description = "District UUID")
             val districtId: UUID?
+
             @get:Schema(description = "Subdistrict UUID")
             val subdistrictId: UUID?
         }
@@ -47,7 +47,7 @@ object Analytics {
             override val from: YearMonth,
             override val to: YearMonth,
             override val geoJson: String? = null,
-            val gradeCode: String? = null
+            val gradeCode: String? = null,
         ) : TimeRangeFilter, SpatialFilter
 
         data class HarvestFilter(
@@ -71,7 +71,6 @@ object Analytics {
     }
 
     object Report {
-
         data class TimeSeries(
             @Schema(type = "string", example = "2026-01")
             val from: YearMonth,
@@ -81,7 +80,7 @@ object Analytics {
             val title: String,
             @Schema(description = "Additional Metadata")
             val metadata: Map<String, Any?>,
-            val series: List<SeriesData>
+            val series: List<SeriesData>,
         )
 
         data class SeriesData(
@@ -90,7 +89,7 @@ object Analytics {
             @Schema(description = "List of values corresponding to the month range")
             val values: List<Number>,
             @Schema(description = "Measurement unit", example = "kg")
-            val unit: String?
+            val unit: String?,
         )
 
         data class Summary(
@@ -102,7 +101,7 @@ object Analytics {
             val title: String,
             @Schema(description = "Additional Metadata")
             val metadata: Map<String, Any?>,
-            val data: DataItem
+            val data: DataItem,
         )
 
         data class DataItem(
@@ -111,10 +110,7 @@ object Analytics {
             @Schema(description = "Value of the data")
             val value: Number,
             @Schema(description = "Measurement unit", example = "kg")
-            val unit: String?
+            val unit: String?,
         )
-
     }
-
-
 }

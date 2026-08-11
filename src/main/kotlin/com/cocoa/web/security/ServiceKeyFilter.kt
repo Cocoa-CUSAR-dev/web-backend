@@ -4,16 +4,15 @@ import com.cocoa.web.config.ChatbotServiceProperties
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 @Component
 class ServiceKeyFilter(
     private val chatbotServiceProperties: ChatbotServiceProperties,
 ) : OncePerRequestFilter() {
-
     // Gates /service/** for trusted first-party services (currently just the
     // chatbot), not farmer/researcher sessions -- mirrors mobile-backend's
     // ServiceAuthMiddleware: proves "the caller knows the shared service
@@ -53,7 +52,10 @@ class ServiceKeyFilter(
         filterChain.doFilter(request, response)
     }
 
-    private fun constantTimeEquals(a: String, b: String): Boolean {
+    private fun constantTimeEquals(
+        a: String,
+        b: String,
+    ): Boolean {
         return MessageDigest.isEqual(
             a.toByteArray(StandardCharsets.UTF_8),
             b.toByteArray(StandardCharsets.UTF_8),

@@ -3,7 +3,6 @@ package com.cocoa.web.model
 import java.util.UUID
 
 object Section {
-
     data class Entity(
         val sectionId: UUID,
         val formId: UUID,
@@ -41,5 +40,4 @@ object Section {
             questions = questions,
         )
     }
-
 }

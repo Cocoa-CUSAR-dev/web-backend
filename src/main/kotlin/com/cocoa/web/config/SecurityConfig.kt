@@ -24,26 +24,26 @@ class SecurityConfig(
     @Value("\${cors.origins:default}") val allowedOrigins: List<String>,
     private val authenticationProvider: AuthenticationProvider,
 ) {
-
     @Bean
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
         serviceKeyFilter: ServiceKeyFilter,
     ): DefaultSecurityFilterChain {
-        val publicEndpoints = arrayOf(
-            "/auth/login",
-            "/auth/register",
-            "/swagger-ui/**",
-            "/swagger-ui/index.html",
-            "/api-docs/**",
-            "/public/**",
-            "/error",
-            // Not actually public -- ServiceKeyFilter is the real gate
-            // (X-Service-Key). Listed here only so Spring Security's own
-            // authorization layer doesn't also demand a farmer/researcher JWT.
-            "/service/**",
-        )
+        val publicEndpoints =
+            arrayOf(
+                "/auth/login",
+                "/auth/register",
+                "/swagger-ui/**",
+                "/swagger-ui/index.html",
+                "/api-docs/**",
+                "/public/**",
+                "/error",
+                // Not actually public -- ServiceKeyFilter is the real gate
+                // (X-Service-Key). Listed here only so Spring Security's own
+                // authorization layer doesn't also demand a farmer/researcher JWT.
+                "/service/**",
+            )
 
         return http
             .csrf { it.disable() }
@@ -67,7 +67,6 @@ class SecurityConfig(
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
-
         val configuration = CorsConfiguration()
         configuration.allowedOrigins = allowedOrigins
         configuration.allowedMethods = listOf("*")

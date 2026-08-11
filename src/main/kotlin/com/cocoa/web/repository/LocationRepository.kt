@@ -10,12 +10,11 @@ import java.util.UUID
 
 @Repository
 class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
-
     fun isHierarchyValid(
         provinceId: UUID?,
         districtId: UUID?,
         subdistrictId: UUID?,
-        farmId: UUID?
+        farmId: UUID?,
     ): Boolean {
         return when {
             farmId != null -> validateFarmHierarchy(farmId, subdistrictId, districtId, provinceId)
@@ -29,14 +28,15 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
         provinceId: UUID?,
         districtId: UUID?,
         subdistrictId: UUID?,
-        farmId: UUID?
+        farmId: UUID?,
     ): Map<String, Any?> {
-        val metadata = mutableMapOf<String, Any?>(
-            "provinceId" to provinceId,
-            "districtId" to districtId,
-            "subdistrictId" to subdistrictId,
-            "farmId" to farmId
-        )
+        val metadata =
+            mutableMapOf<String, Any?>(
+                "provinceId" to provinceId,
+                "districtId" to districtId,
+                "subdistrictId" to subdistrictId,
+                "farmId" to farmId,
+            )
 
         when {
             metadata["farmId"] != null -> {
@@ -58,16 +58,17 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
         farmId: UUID,
         providedSubdistrictId: UUID?,
         providedDistrictId: UUID?,
-        providedProvinceId: UUID?
+        providedProvinceId: UUID?,
     ): Boolean {
-        val actualFarmLocation = dsl.select(
-            FARM.SUBDISTRICT_ID,
-            FARM.DISTRICT_ID,
-            FARM.PROVINCE_ID
-        )
-            .from(FARM)
-            .where(FARM.FARM_ID.eq(farmId))
-            .fetchOne() ?: return false
+        val actualFarmLocation =
+            dsl.select(
+                FARM.SUBDISTRICT_ID,
+                FARM.DISTRICT_ID,
+                FARM.PROVINCE_ID,
+            )
+                .from(FARM)
+                .where(FARM.FARM_ID.eq(farmId))
+                .fetchOne() ?: return false
 
         val actualSubdistrictId = actualFarmLocation.get(FARM.SUBDISTRICT_ID)
         val actualDistrictId = actualFarmLocation.get(FARM.DISTRICT_ID)
@@ -83,16 +84,17 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
     private fun validateSubdistrictHierarchy(
         subdistrictId: UUID,
         providedDistrictId: UUID?,
-        providedProvinceId: UUID?
+        providedProvinceId: UUID?,
     ): Boolean {
-        val actualHierarchy = dsl.select(
-            SUBDISTRICT_CONSTANT.DISTRICT_ID,
-            DISTRICT_CONSTANT.PROVINCE_ID
-        )
-            .from(SUBDISTRICT_CONSTANT)
-            .join(DISTRICT_CONSTANT).on(DISTRICT_CONSTANT.DISTRICT_ID.eq(SUBDISTRICT_CONSTANT.DISTRICT_ID))
-            .where(SUBDISTRICT_CONSTANT.SUBDISTRICT_ID.eq(subdistrictId))
-            .fetchOne() ?: return false
+        val actualHierarchy =
+            dsl.select(
+                SUBDISTRICT_CONSTANT.DISTRICT_ID,
+                DISTRICT_CONSTANT.PROVINCE_ID,
+            )
+                .from(SUBDISTRICT_CONSTANT)
+                .join(DISTRICT_CONSTANT).on(DISTRICT_CONSTANT.DISTRICT_ID.eq(SUBDISTRICT_CONSTANT.DISTRICT_ID))
+                .where(SUBDISTRICT_CONSTANT.SUBDISTRICT_ID.eq(subdistrictId))
+                .fetchOne() ?: return false
 
         val actualDistrictId = actualHierarchy.get(SUBDISTRICT_CONSTANT.DISTRICT_ID)
         val actualProvinceId = actualHierarchy.get(DISTRICT_CONSTANT.PROVINCE_ID)
@@ -105,22 +107,23 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
 
     private fun validateDistrictToProvinceLink(
         districtId: UUID,
-        provinceId: UUID
+        provinceId: UUID,
     ): Boolean {
         return dsl.fetchExists(
             dsl.selectOne()
                 .from(DISTRICT_CONSTANT)
                 .where(DISTRICT_CONSTANT.DISTRICT_ID.eq(districtId))
-                .and(DISTRICT_CONSTANT.PROVINCE_ID.eq(provinceId))
+                .and(DISTRICT_CONSTANT.PROVINCE_ID.eq(provinceId)),
         )
     }
 
     private fun fillHierarchyFromFarm(metadata: MutableMap<String, Any?>) {
         val farmId = metadata["farmId"] as UUID
-        val record = dsl.select(FARM.PROVINCE_ID, FARM.DISTRICT_ID, FARM.SUBDISTRICT_ID)
-            .from(FARM)
-            .where(FARM.FARM_ID.eq(farmId))
-            .fetchOne()
+        val record =
+            dsl.select(FARM.PROVINCE_ID, FARM.DISTRICT_ID, FARM.SUBDISTRICT_ID)
+                .from(FARM)
+                .where(FARM.FARM_ID.eq(farmId))
+                .fetchOne()
 
         metadata["provinceId"] = record?.get(FARM.PROVINCE_ID)
         metadata["districtId"] = record?.get(FARM.DISTRICT_ID)
@@ -129,11 +132,12 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
 
     private fun fillHierarchyFromSubdistrict(metadata: MutableMap<String, Any?>) {
         val subdistrictId = metadata["subdistrictId"] as UUID
-        val record = dsl.select(SUBDISTRICT_CONSTANT.DISTRICT_ID, DISTRICT_CONSTANT.PROVINCE_ID)
-            .from(SUBDISTRICT_CONSTANT)
-            .join(DISTRICT_CONSTANT).on(DISTRICT_CONSTANT.DISTRICT_ID.eq(SUBDISTRICT_CONSTANT.DISTRICT_ID))
-            .where(SUBDISTRICT_CONSTANT.SUBDISTRICT_ID.eq(subdistrictId))
-            .fetchOne()
+        val record =
+            dsl.select(SUBDISTRICT_CONSTANT.DISTRICT_ID, DISTRICT_CONSTANT.PROVINCE_ID)
+                .from(SUBDISTRICT_CONSTANT)
+                .join(DISTRICT_CONSTANT).on(DISTRICT_CONSTANT.DISTRICT_ID.eq(SUBDISTRICT_CONSTANT.DISTRICT_ID))
+                .where(SUBDISTRICT_CONSTANT.SUBDISTRICT_ID.eq(subdistrictId))
+                .fetchOne()
 
         metadata["districtId"] = record?.get(SUBDISTRICT_CONSTANT.DISTRICT_ID)
         metadata["provinceId"] = record?.get(DISTRICT_CONSTANT.PROVINCE_ID)
@@ -141,10 +145,11 @@ class LocationRepository(dsl: DSLContext) : BaseRepository(dsl) {
 
     private fun fillHierarchyFromDistrict(metadata: MutableMap<String, Any?>) {
         val districtId = metadata["districtId"] as UUID
-        val provinceId = dsl.select(DISTRICT_CONSTANT.PROVINCE_ID)
-            .from(DISTRICT_CONSTANT)
-            .where(DISTRICT_CONSTANT.DISTRICT_ID.eq(districtId))
-            .fetchOneInto(UUID::class.java)
+        val provinceId =
+            dsl.select(DISTRICT_CONSTANT.PROVINCE_ID)
+                .from(DISTRICT_CONSTANT)
+                .where(DISTRICT_CONSTANT.DISTRICT_ID.eq(districtId))
+                .fetchOneInto(UUID::class.java)
 
         metadata["provinceId"] = provinceId
     }
