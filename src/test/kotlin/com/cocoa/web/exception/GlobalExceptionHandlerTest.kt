@@ -1,6 +1,7 @@
 package com.cocoa.web.exception
 
 import com.cocoa.web.WebApplicationTests
+import com.cocoa.web.security.WithMockPrincipal
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
@@ -18,7 +19,7 @@ import java.util.UUID
  */
 class GlobalExceptionHandlerTest : WebApplicationTests() {
     @Test
-    @WithMockUser(authorities = ["read:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own"])
     fun entityNotFound_mapsTo404() {
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw EntityNotFoundException("missing user")
@@ -30,7 +31,7 @@ class GlobalExceptionHandlerTest : WebApplicationTests() {
     }
 
     @Test
-    @WithMockUser(authorities = ["read:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own"])
     fun illegalArgument_mapsTo400() {
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw IllegalArgumentException("bad input")
@@ -42,7 +43,7 @@ class GlobalExceptionHandlerTest : WebApplicationTests() {
     }
 
     @Test
-    @WithMockUser(authorities = ["read:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own"])
     fun permissionDenied_mapsTo403() {
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw PermissionDeniedException("nope")
@@ -54,7 +55,7 @@ class GlobalExceptionHandlerTest : WebApplicationTests() {
     }
 
     @Test
-    @WithMockUser(authorities = ["read:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own"])
     fun genericException_mapsTo500() {
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw RuntimeException("boom")

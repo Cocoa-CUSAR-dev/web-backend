@@ -18,6 +18,7 @@ import com.cocoa.web.repository.ResearcherRepository
 import com.cocoa.web.repository.SectionRepository
 import com.cocoa.web.repository.TaskRepository
 import com.cocoa.web.repository.UserRepository
+import com.cocoa.web.security.WithMockPrincipal
 import com.cocoa.web.service.AuthenticationService
 import com.cocoa.web.service.CookieService
 import com.cocoa.web.service.FormResponseService
@@ -176,7 +177,7 @@ class WebApplicationTests {
     // ----------------------------------------------------------------------
 
     @Test
-    @WithMockUser(username = "tester", authorities = ["read:profile:own"])
+    @WithMockPrincipal(username = "tester", authorities = ["read:profile:own"])
     fun authMe_returnsCurrentUser() {
         val userId = UUID.randomUUID()
         whenever(userService.getUserDetail(userId)).thenReturn(
@@ -210,7 +211,7 @@ class WebApplicationTests {
     }
 
     @Test
-    @WithMockUser(authorities = ["read:profile:own", "update:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own", "update:profile:own"])
     fun authResetPassword_returns200() {
         val body =
             objectMapper.writeValueAsString(
@@ -590,7 +591,11 @@ class WebApplicationTests {
 
         mockMvc.perform(get("/reports/raw-data/download"))
             .andExpect(status().isOk)
-            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_OCTET_STREAM))
+            .andExpect(
+                content().contentTypeCompatibleWith(
+                    MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                ),
+            )
     }
 
     // ----------------------------------------------------------------------
@@ -618,7 +623,7 @@ class WebApplicationTests {
     }
 
     @Test
-    @WithMockUser(username = "me", authorities = ["read:researcher:own"])
+    @WithMockPrincipal(username = "me", authorities = ["read:researcher:own"])
     fun researchers_getMe_returns200() {
         val userId = UUID.randomUUID()
         whenever(userService.getUserDetail(any<UUID>())).thenReturn(
@@ -693,7 +698,7 @@ class WebApplicationTests {
     // ----------------------------------------------------------------------
 
     @Test
-    @WithMockUser(authorities = ["read:profile:own"])
+    @WithMockPrincipal(authorities = ["read:profile:own"])
     fun authMe_userNotFound_returns404() {
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw com.cocoa.web.exception.EntityNotFoundException("User not found")

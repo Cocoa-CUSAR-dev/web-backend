@@ -56,7 +56,7 @@ class GlobalExceptionHandler {
         ex: org.springframework.web.method.annotation.MethodArgumentTypeMismatchException,
     ): ResponseEntity<ApiResponse<String>> {
         val message = "Invalid parameter value: ${ex.value}. Expected one of the supported types."
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message.toApiResponse())
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(value = null, error = message))
     }
 
     @ExceptionHandler(UnsupportedSheetException::class)
