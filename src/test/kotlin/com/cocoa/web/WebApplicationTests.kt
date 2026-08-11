@@ -217,6 +217,7 @@ class WebApplicationTests {
             objectMapper.writeValueAsString(
                 mapOf("newPassword" to "NewSecureP@ss1"),
             )
+        whenever(cookieService.removeCookie(any())).thenReturn(jakarta.servlet.http.Cookie("jwt", ""))
 
         mockMvc.perform(
             patch("/auth/reset-password")
