@@ -1,8 +1,9 @@
 name: CD
 
-# TODO: deploy target not decided yet. Currently triggers on push to `main`
-# and manual dispatch, builds the jar, and stops. Fill in the `deploy` job
-# once the target is confirmed (Render deploy hook / SSH / Docker registry / etc).
+# Render's web-backend service watches `main` with Auto-Deploy set to
+# "After CI Checks Pass" -- Render itself waits on this workflow's status
+# check before deploying, so there's no separate deploy step here. This
+# job's only job is to be the CI check Render is waiting on.
 on:
   push:
     branches: '**'
@@ -67,17 +68,3 @@ jobs:
           name: cocoa-jar
           path: build/libs/cocoa.jar
           if-no-files-found: error
-
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - name: Deploy (not configured yet)
-        run: |
-          echo "TODO: no deploy target configured yet."
-          echo "Options once decided:"
-          echo "  - Render: curl -fsS -X POST \"\$RENDER_DEPLOY_HOOK_URL\" (store hook URL as a repo secret)"
-          echo "  - SSH: scp the jar to the server, then restart the systemd service"
-          echo "  - Docker: build+push an image to a registry, then pull on the host"
-          echo "See build.gradle.kts / README.md 'Build & deploy' section for the jar output path."
