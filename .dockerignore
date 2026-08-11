@@ -1,0 +1,16 @@
+.env
+local.properties
+gradle.properties
+
+.git
+.gradle
+.idea
+.kotlin
+.vscode
+build/
+out/
+bin/
+
+*.log
+HELP.md
+README.md
