@@ -52,7 +52,10 @@ class ServiceKeyFilter(
         filterChain.doFilter(request, response)
     }
 
-    private fun constantTimeEquals(a: String, b: String): Boolean {
+    private fun constantTimeEquals(
+        a: String,
+        b: String,
+    ): Boolean {
         return MessageDigest.isEqual(
             a.toByteArray(StandardCharsets.UTF_8),
             b.toByteArray(StandardCharsets.UTF_8),

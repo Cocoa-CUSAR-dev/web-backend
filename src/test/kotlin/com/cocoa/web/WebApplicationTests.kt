@@ -233,7 +233,7 @@ class WebApplicationTests {
     // ----------------------------------------------------------------------
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = ["read:task:all"])
     fun tasks_getAll_returns200() {
         val now = LocalDateTime.now()
         whenever(taskService.getTasks()).thenReturn(
@@ -255,7 +255,7 @@ class WebApplicationTests {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = ["read:task:all"])
     fun tasks_getById_returns200() {
         val now = LocalDateTime.now()
         val taskId = UUID.randomUUID()
@@ -363,7 +363,7 @@ class WebApplicationTests {
     // ----------------------------------------------------------------------
 
     @Test
-    @WithMockUser(authorities = ["read:form:all"])
+    @WithMockUser(authorities = ["read:response:all"])
     fun formResponses_getAll_returns200() {
         val taskId = UUID.randomUUID()
         whenever(formResponseService.getUserResponse(taskId)).thenReturn(
@@ -381,7 +381,7 @@ class WebApplicationTests {
     }
 
     @Test
-    @WithMockUser(authorities = ["read:form:all"])
+    @WithMockUser(authorities = ["read:response:all"])
     fun formResponses_getById_returns200() {
         val taskId = UUID.randomUUID()
         val responseId = UUID.randomUUID()
