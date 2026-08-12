@@ -12,6 +12,7 @@ import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Table
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -71,6 +72,115 @@ class FormRepository(
             description = first.get(TASK_FORM.DESCRIPTION),
             sections = buildSections(records),
         )
+    }
+
+    // Real edit: writes every field (unlike the old batchUpdate-based Edit,
+    // which only ever touched is_active/is_mandatory and silently dropped
+    // description), and supports add/remove -- a section or question with a
+    // null id is inserted as new; any existing row under this form/section
+    // that ISN'T present in the request is deleted. One transaction so the
+    // form is never left half-updated by a failed request partway through.
+    fun updateForm(
+        formId: UUID,
+        request: Form.Request.Update,
+    ) {
+        dsl.transaction { config ->
+            val transactionDsl = DSL.using(config)
+
+            transactionDsl.update(TASK_FORM)
+                .set(TASK_FORM.DESCRIPTION, request.description)
+                .where(TASK_FORM.FORM_ID.eq(formId))
+                .execute()
+
+            val existingSectionIds =
+                transactionDsl.select(SECTION.SECTION_ID)
+                    .from(SECTION)
+                    .where(SECTION.FORM_ID.eq(formId))
+                    .fetchSet(SECTION.SECTION_ID)
+
+            val keptSectionIds = mutableSetOf<UUID>()
+
+            request.sections.forEach { sectionReq ->
+                val sectionId =
+                    if (sectionReq.sectionId != null && sectionReq.sectionId in existingSectionIds) {
+                        transactionDsl.update(SECTION)
+                            .set(SECTION.TITLE, sectionReq.title)
+                            .set(SECTION.DESCRIPTION, sectionReq.description)
+                            .set(SECTION.SORT_ORDER, sectionReq.sortOrder)
+                            .set(SECTION.IS_ACTIVE, sectionReq.isActive)
+                            .where(SECTION.SECTION_ID.eq(sectionReq.sectionId))
+                            .execute()
+                        sectionReq.sectionId
+                    } else {
+                        transactionDsl.insertInto(SECTION)
+                            .set(SECTION.FORM_ID, formId)
+                            .set(SECTION.TITLE, sectionReq.title)
+                            .set(SECTION.DESCRIPTION, sectionReq.description)
+                            .set(SECTION.SORT_ORDER, sectionReq.sortOrder)
+                            .set(SECTION.IS_ACTIVE, sectionReq.isActive)
+                            .returning(SECTION.SECTION_ID)
+                            .fetchOne()?.get(SECTION.SECTION_ID)
+                            ?: throw IllegalStateException("Section creation failed")
+                    }
+                keptSectionIds.add(sectionId)
+
+                val existingQuestionIds =
+                    transactionDsl.select(QUESTION.QUESTION_ID)
+                        .from(QUESTION)
+                        .where(QUESTION.SECTION_ID.eq(sectionId))
+                        .fetchSet(QUESTION.QUESTION_ID)
+
+                val keptQuestionIds = mutableSetOf<UUID>()
+
+                sectionReq.questions.forEach { questionReq ->
+                    val questionId =
+                        if (questionReq.questionId != null && questionReq.questionId in existingQuestionIds) {
+                            transactionDsl.update(QUESTION)
+                                .set(QUESTION.LABEL, questionReq.label)
+                                .set(QUESTION.DESCRIPTION, questionReq.description)
+                                .set(QUESTION.INPUT_TYPE, questionReq.inputType)
+                                .set(QUESTION.FIELD_NAME, questionReq.fieldName)
+                                .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
+                                .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
+                                .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
+                                .where(QUESTION.QUESTION_ID.eq(questionReq.questionId))
+                                .execute()
+                            questionReq.questionId
+                        } else {
+                            transactionDsl.insertInto(QUESTION)
+                                .set(QUESTION.SECTION_ID, sectionId)
+                                .set(QUESTION.LABEL, questionReq.label)
+                                .set(QUESTION.DESCRIPTION, questionReq.description)
+                                .set(QUESTION.INPUT_TYPE, questionReq.inputType)
+                                .set(QUESTION.FIELD_NAME, questionReq.fieldName)
+                                .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
+                                .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
+                                .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
+                                .returning(QUESTION.QUESTION_ID)
+                                .fetchOne()?.get(QUESTION.QUESTION_ID)
+                                ?: throw IllegalStateException("Question creation failed")
+                        }
+                    keptQuestionIds.add(questionId)
+                }
+
+                transactionDsl.deleteFrom(QUESTION)
+                    .where(QUESTION.SECTION_ID.eq(sectionId))
+                    .and(QUESTION.QUESTION_ID.notIn(keptQuestionIds))
+                    .execute()
+            }
+
+            val sectionIdsToRemove = existingSectionIds - keptSectionIds
+            if (sectionIdsToRemove.isNotEmpty()) {
+                transactionDsl.deleteFrom(QUESTION)
+                    .where(QUESTION.SECTION_ID.`in`(sectionIdsToRemove))
+                    .execute()
+                transactionDsl.deleteFrom(SECTION)
+                    .where(SECTION.SECTION_ID.`in`(sectionIdsToRemove))
+                    .execute()
+            }
+        }
     }
 
     // Helper Functions
