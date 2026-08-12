@@ -45,4 +45,24 @@ class FormService(
         sectionRepository.batchUpdate(request.sections)
         questionRepository.batchUpdate(questions)
     }
+
+    // A form with no sections is invisible to fetchForms/GET-forms (it
+    // filters on whereExists(SECTION)) -- 21 legacy rows already exist that
+    // way by accident, per dynamic-form-proposal.md decision #5. Newly
+    // created forms shouldn't silently repeat that: require at least one
+    // section, and each section at least one question, so a created form is
+    // always actually usable end to end.
+    fun createForm(request: Form.Request.Create): Form.Detail {
+        require(request.title.isNotBlank()) { "Form title must not be blank" }
+        require(request.handler.isNotBlank()) { "Form handler must not be blank" }
+        require(request.sections.isNotEmpty()) { "A form must have at least one section" }
+        request.sections.forEach {
+            require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
+        }
+
+        val formId = formRepository.createForm(request)
+
+        return formRepository.fetchForm(formId)
+            ?: throw IllegalStateException("Form was created but could not be re-fetched")
+    }
 }

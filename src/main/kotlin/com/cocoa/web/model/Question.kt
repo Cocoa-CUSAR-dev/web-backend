@@ -30,5 +30,15 @@ object Question {
             val isActive: Boolean?,
             val isMandatory: Boolean?,
         )
+
+        data class Create(
+            val label: String,
+            val description: String?,
+            val inputType: String,
+            val fieldName: String?,
+            val isMandatory: Boolean = false,
+            val sortOrder: Int,
+            val defaultValue: JsonNode? = null,
+        )
     }
 }

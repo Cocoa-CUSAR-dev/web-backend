@@ -28,6 +28,13 @@ object Section {
             val isActive: Boolean,
             val questions: List<Question.Request.Edit>,
         )
+
+        data class Create(
+            val title: String,
+            val description: String?,
+            val sortOrder: Int,
+            val questions: List<Question.Request.Create>,
+        )
     }
 
     fun Entity.toDetail(questions: List<Question.Entity>): Detail {

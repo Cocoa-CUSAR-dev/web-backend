@@ -2,6 +2,7 @@ package com.cocoa.web.repository
 
 import com.cocoa.generated.form.Tables.QUESTION
 import com.cocoa.generated.form.Tables.SECTION
+import com.cocoa.generated.form.Tables.TASK
 import com.cocoa.generated.form.Tables.TASK_FORM
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Form
@@ -12,6 +13,7 @@ import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
 import org.jooq.Table
+import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -71,6 +73,61 @@ class FormRepository(
             description = first.get(TASK_FORM.DESCRIPTION),
             sections = buildSections(records),
         )
+    }
+
+    // Creates form.task + form.task_form + form.section[] + form.question[]
+    // in one transaction, so a form with sections but no questions (or vice
+    // versa) can never be left half-created by a failed request partway
+    // through. See docs/bugs/dynamic-form-proposal.md, Part 2.
+    fun createForm(request: Form.Request.Create): UUID {
+        return dsl.transactionResult { config ->
+            val transactionDsl = DSL.using(config)
+
+            val taskId = transactionDsl.insertInto(TASK)
+                .set(TASK.TITLE, request.title)
+                .set(TASK.DESCRIPTION, request.description ?: "")
+                .set(TASK.TASK_TYPE, request.taskType)
+                .set(TASK.OPEN_AT, request.openAt)
+                .set(TASK.CLOSE_AT, request.closeAt)
+                .returning(TASK.TASK_ID)
+                .fetchOne()?.get(TASK.TASK_ID)
+                ?: throw IllegalStateException("Task creation failed")
+
+            val formId = transactionDsl.insertInto(TASK_FORM)
+                .set(TASK_FORM.TASK_ID, taskId)
+                .set(TASK_FORM.TITLE, request.title)
+                .set(TASK_FORM.DESCRIPTION, request.description)
+                .set(TASK_FORM.HANDLER, request.handler)
+                .returning(TASK_FORM.FORM_ID)
+                .fetchOne()?.get(TASK_FORM.FORM_ID)
+                ?: throw IllegalStateException("Form creation failed")
+
+            request.sections.forEach { section ->
+                val sectionId = transactionDsl.insertInto(SECTION)
+                    .set(SECTION.FORM_ID, formId)
+                    .set(SECTION.TITLE, section.title)
+                    .set(SECTION.DESCRIPTION, section.description)
+                    .set(SECTION.SORT_ORDER, section.sortOrder)
+                    .returning(SECTION.SECTION_ID)
+                    .fetchOne()?.get(SECTION.SECTION_ID)
+                    ?: throw IllegalStateException("Section creation failed")
+
+                section.questions.forEach { question ->
+                    transactionDsl.insertInto(QUESTION)
+                        .set(QUESTION.SECTION_ID, sectionId)
+                        .set(QUESTION.LABEL, question.label)
+                        .set(QUESTION.DESCRIPTION, question.description)
+                        .set(QUESTION.INPUT_TYPE, question.inputType)
+                        .set(QUESTION.FIELD_NAME, question.fieldName)
+                        .set(QUESTION.IS_MANDATORY, question.isMandatory)
+                        .set(QUESTION.SORT_ORDER, question.sortOrder)
+                        .set(QUESTION.DEFAULT_VALUE, question.defaultValue)
+                        .execute()
+                }
+            }
+
+            return@transactionResult formId
+        }
     }
 
     // Helper Functions

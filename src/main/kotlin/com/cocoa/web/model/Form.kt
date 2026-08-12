@@ -27,6 +27,16 @@ object Form {
             val description: String?,
             val sections: List<Section.Request.Edit>,
         )
+
+        data class Create(
+            val title: String,
+            val description: String?,
+            val taskType: String = "FORM",
+            val openAt: LocalDateTime,
+            val closeAt: LocalDateTime,
+            val handler: String,
+            val sections: List<Section.Request.Create>,
+        )
     }
 
     fun Entity.toDetail(sections: List<Section.Detail>): Detail {
