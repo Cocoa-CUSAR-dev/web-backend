@@ -156,7 +156,7 @@ CREATE TABLE form.question (
     input_type VARCHAR(50),
     description TEXT,
     field_name VARCHAR(255),
-    default_value TEXT,
+    default_value JSONB,
     is_mandatory BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     sort_order INTEGER
