@@ -7,7 +7,6 @@ import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Question
 import com.cocoa.web.model.Section
-import com.cocoa.web.util.JsonUtils
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
@@ -292,7 +291,7 @@ class FormRepository(
             inputType = inputType,
             description = this.get(QUESTION.DESCRIPTION),
             fieldName = fieldName,
-            defaultValue = this.get(QUESTION.DEFAULT_VALUE)?.let(JsonUtils::read),
+            defaultValue = this.get(QUESTION.DEFAULT_VALUE),
             isMandatory = this.get(QUESTION.IS_MANDATORY),
             isActive = this.get(QUESTION.IS_ACTIVE),
             sortOrder = this.get(QUESTION.SORT_ORDER),
