@@ -55,7 +55,8 @@ class FormService(
 
     fun getHandlerFields(handler: String): List<Handler.Field> {
         return handlerCatalogRepository.fetchHandlerFields(handler)
-        
+    }
+
     // Real edit (writes label/inputType/fieldName/sortOrder/description and
     // supports add/remove), as opposed to editForm's is_active/is_mandatory
     // toggle above. Same "at least one section, at least one question per

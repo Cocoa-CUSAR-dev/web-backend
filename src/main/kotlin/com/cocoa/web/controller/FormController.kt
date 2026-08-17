@@ -73,7 +73,8 @@ class FormController(
         val fields = formService.getHandlerFields(handler)
 
         return fields.toResponseEntity(HttpStatus.OK)
-        
+    }
+
     @PreAuthorize("hasAuthority('update:form:all')")
     @Operation(
         summary = "Fully update a form",
