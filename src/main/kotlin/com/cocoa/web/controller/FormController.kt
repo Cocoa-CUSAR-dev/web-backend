@@ -73,5 +73,19 @@ class FormController(
         val fields = formService.getHandlerFields(handler)
 
         return fields.toResponseEntity(HttpStatus.OK)
+        
+    @PreAuthorize("hasAuthority('update:form:all')")
+    @Operation(
+        summary = "Fully update a form",
+        description = "Writes label/inputType/fieldName/sortOrder/description and supports adding/removing sections and questions.",
+    )
+    @PutMapping("/{formId}")
+    fun updateForm(
+        @PathVariable formId: UUID,
+        @RequestBody request: Form.Request.Update,
+    ): ResponseEntity<ApiResponse<Form.Detail>> {
+        val form = formService.updateForm(formId, request)
+
+        return form.toResponseEntity(HttpStatus.OK)
     }
 }

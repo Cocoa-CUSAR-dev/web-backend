@@ -55,5 +55,27 @@ class FormService(
 
     fun getHandlerFields(handler: String): List<Handler.Field> {
         return handlerCatalogRepository.fetchHandlerFields(handler)
+        
+    // Real edit (writes label/inputType/fieldName/sortOrder/description and
+    // supports add/remove), as opposed to editForm's is_active/is_mandatory
+    // toggle above. Same "at least one section, at least one question per
+    // section" rule as createForm, so an update can't leave the form in the
+    // same invisible-to-GET-forms state createForm already guards against.
+    fun updateForm(
+        formId: UUID,
+        request: Form.Request.Update,
+    ): Form.Detail {
+        formRepository.findByFormId(formId)
+            ?: throw EntityNotFoundException("Form not found")
+
+        require(request.sections.isNotEmpty()) { "A form must have at least one section" }
+        request.sections.forEach {
+            require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
+        }
+
+        formRepository.updateForm(formId, request)
+
+        return formRepository.fetchForm(formId)
+            ?: throw IllegalStateException("Form was updated but could not be re-fetched")
     }
 }
