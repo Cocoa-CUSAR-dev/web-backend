@@ -30,5 +30,20 @@ object Question {
             val isActive: Boolean?,
             val isMandatory: Boolean?,
         )
+
+        // questionId == null means "create this question"; otherwise it
+        // must name a question that already belongs to the section being
+        // updated.
+        data class Update(
+            val questionId: UUID?,
+            val label: String,
+            val description: String?,
+            val inputType: String,
+            val fieldName: String?,
+            val isMandatory: Boolean = false,
+            val isActive: Boolean = true,
+            val sortOrder: Int,
+            val defaultValue: JsonNode? = null,
+        )
     }
 }
