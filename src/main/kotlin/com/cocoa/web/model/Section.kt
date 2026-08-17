@@ -35,7 +35,7 @@ object Section {
             val sortOrder: Int,
             val questions: List<Question.Request.Create>,
         )
-         
+
         // sectionId == null means "create this section"; otherwise it must
         // name a section that already belongs to the form being updated.
         data class Update(

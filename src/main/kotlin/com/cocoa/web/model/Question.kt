@@ -40,7 +40,7 @@ object Question {
             val sortOrder: Int,
             val defaultValue: JsonNode? = null,
         )
-        
+
         // questionId == null means "create this question"; otherwise it
         // must name a question that already belongs to the section being
         // updated.

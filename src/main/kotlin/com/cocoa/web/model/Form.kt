@@ -37,7 +37,7 @@ object Form {
             val handler: String,
             val sections: List<Section.Request.Create>,
         )
-          
+
         // Unlike Edit (which only toggles is_active/is_mandatory on rows
         // that already exist), Update writes every editable field and
         // supports adding/removing sections and questions: a section or

@@ -65,7 +65,7 @@ class FormController(
 
         return form.toResponseEntity(HttpStatus.CREATED)
     }
-        
+
     @PreAuthorize("hasAuthority('update:form:all')")
     @Operation(
         summary = "Fully update a form",

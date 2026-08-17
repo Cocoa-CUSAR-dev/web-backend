@@ -129,7 +129,9 @@ class FormRepository(
             }
 
             return@transactionResult formId
-          
+        }
+    }
+
     // Real edit: writes every field (unlike the old batchUpdate-based Edit,
     // which only ever touched is_active/is_mandatory and silently dropped
     // description), and supports add/remove -- a section or question with a

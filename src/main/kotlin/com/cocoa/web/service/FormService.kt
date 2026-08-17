@@ -59,13 +59,13 @@ class FormService(
         request.sections.forEach {
             require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
         }
-        
+
         val formId = formRepository.createForm(request)
 
         return formRepository.fetchForm(formId)
             ?: throw IllegalStateException("Form was created but could not be re-fetched")
     }
-            
+
     // Real edit (writes label/inputType/fieldName/sortOrder/description and
     // supports add/remove), as opposed to editForm's is_active/is_mandatory
     // toggle above. Same "at least one section, at least one question per
