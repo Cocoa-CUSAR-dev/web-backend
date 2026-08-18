@@ -75,7 +75,7 @@ class FormController(
 
         return fields.toResponseEntity(HttpStatus.OK)
     }
-    
+
     @PreAuthorize("hasAuthority('create:form:all')")
     @Operation(summary = "Create a new form", description = "Creates a task, its form, and all sections/questions in one transaction.")
     @PostMapping

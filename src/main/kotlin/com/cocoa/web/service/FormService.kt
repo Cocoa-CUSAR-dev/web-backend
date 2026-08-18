@@ -56,7 +56,7 @@ class FormService(
     fun getHandlerFields(handler: String): List<Handler.Field> {
         return handlerCatalogRepository.fetchHandlerFields(handler)
     }
-    
+
     // A form with no sections is invisible to fetchForms/GET-forms (it
     // filters on whereExists(SECTION)) -- 21 legacy rows already exist that
     // way by accident, per dynamic-form-proposal.md decision #5. Newly
