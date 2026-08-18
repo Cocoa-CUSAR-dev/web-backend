@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -73,6 +74,17 @@ class FormController(
         val fields = formService.getHandlerFields(handler)
 
         return fields.toResponseEntity(HttpStatus.OK)
+    }
+    
+    @PreAuthorize("hasAuthority('create:form:all')")
+    @Operation(summary = "Create a new form", description = "Creates a task, its form, and all sections/questions in one transaction.")
+    @PostMapping
+    fun createForm(
+        @RequestBody request: Form.Request.Create,
+    ): ResponseEntity<ApiResponse<Form.Detail>> {
+        val form = formService.createForm(request)
+
+        return form.toResponseEntity(HttpStatus.CREATED)
     }
 
     @PreAuthorize("hasAuthority('update:form:all')")

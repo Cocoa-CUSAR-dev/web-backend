@@ -29,6 +29,13 @@ object Section {
             val questions: List<Question.Request.Edit>,
         )
 
+        data class Create(
+            val title: String,
+            val description: String?,
+            val sortOrder: Int,
+            val questions: List<Question.Request.Create>,
+        )
+
         // sectionId == null means "create this section"; otherwise it must
         // name a section that already belongs to the form being updated.
         data class Update(
