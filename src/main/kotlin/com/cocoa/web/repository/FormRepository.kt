@@ -1,5 +1,6 @@
 package com.cocoa.web.repository
 
+import com.cocoa.generated.form.Tables.FIELD_VALIDATION_RULE
 import com.cocoa.generated.form.Tables.QUESTION
 import com.cocoa.generated.form.Tables.SECTION
 import com.cocoa.generated.form.Tables.TASK
@@ -260,10 +261,12 @@ class FormRepository(
             QUESTION.IS_MANDATORY,
             QUESTION.IS_ACTIVE,
             QUESTION.SORT_ORDER,
+            FIELD_VALIDATION_RULE.VALIDATION_RULE,
         )
             .from(TASK_FORM)
             .leftJoin(SECTION).on(SECTION.FORM_ID.eq(TASK_FORM.FORM_ID))
             .leftJoin(QUESTION).on(QUESTION.SECTION_ID.eq(SECTION.SECTION_ID))
+            .leftJoin(FIELD_VALIDATION_RULE).on(FIELD_VALIDATION_RULE.FIELD_NAME.eq(QUESTION.FIELD_NAME))
             .where(TASK_FORM.FORM_ID.eq(formId))
             .orderBy(SECTION.SORT_ORDER, QUESTION.SORT_ORDER)
             .fetch()
@@ -401,6 +404,7 @@ class FormRepository(
                 } else {
                     null
                 },
+            validationRule = this.get(FIELD_VALIDATION_RULE.VALIDATION_RULE),
         )
     }
 
