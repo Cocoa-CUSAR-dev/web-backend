@@ -342,7 +342,20 @@ class FormRepository(
 
         val (table, idField, nameField) =
             refChoiceFieldCache.getOrPut(fieldName) {
-                val tableName = fieldName.removeSuffix("_id") + "_constant"
+                // CB-5(c): drying_facility_type_id is otherwise a clean
+                // surrogate-key match (both drying_facility_type_id and
+                // drying_facility_type_name exist on the real ref table,
+                // exactly what the convention below expects) -- only the
+                // TABLE name breaks convention: the naive derivation gives
+                // "drying_facility_type_constant", but the real table is
+                // ref.drying_facility_constant (no "_type"). One targeted
+                // override rather than a whole separate query shape, since
+                // id/name resolution doesn't need one here.
+                val tableName =
+                    when (fieldName) {
+                        "drying_facility_type_id" -> "drying_facility_constant"
+                        else -> fieldName.removeSuffix("_id") + "_constant"
+                    }
                 val namePrefix = fieldName.removeSuffix("_id") + "_name"
 
                 val columns = refSchemaColumns(tableName)
