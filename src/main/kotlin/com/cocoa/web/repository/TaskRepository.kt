@@ -2,6 +2,7 @@ package com.cocoa.web.repository
 
 import com.cocoa.generated.form.Tables.TASK
 import com.cocoa.web.base.BaseRepository
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.model.Task
 import org.jooq.DSLContext
 import org.jooq.Record
@@ -12,8 +13,17 @@ import java.util.UUID
 class TaskRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
-    fun fetchTasks(): List<Task.Entity> {
-        val records = dsl.selectFrom(TASK).fetch()
+    // BE-9: was an unbounded .fetch() with no order -- added a stable sort
+    // (open_at desc, then task_id as a tiebreaker so equal open_at values
+    // don't reshuffle between pages) since limit/offset without one can
+    // return a row twice or skip one across pages.
+    fun fetchTasks(pageRequest: PageRequest = PageRequest()): List<Task.Entity> {
+        val records =
+            dsl.selectFrom(TASK)
+                .orderBy(TASK.OPEN_AT.desc(), TASK.TASK_ID)
+                .limit(pageRequest.size)
+                .offset(pageRequest.offset)
+                .fetch()
 
         return records.map { it.toTaskEntity() }
     }

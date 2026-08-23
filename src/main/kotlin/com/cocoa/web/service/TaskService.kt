@@ -1,6 +1,7 @@
 package com.cocoa.web.service
 
 import com.cocoa.web.base.BaseService
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Task
 import com.cocoa.web.repository.TaskRepository
@@ -11,8 +12,8 @@ import java.util.UUID
 class TaskService(
     private val taskRepository: TaskRepository,
 ) : BaseService() {
-    fun getTasks(): List<Task.Entity> {
-        return taskRepository.fetchTasks()
+    fun getTasks(pageRequest: PageRequest = PageRequest()): List<Task.Entity> {
+        return taskRepository.fetchTasks(pageRequest)
     }
 
     fun getTask(taskId: UUID): Task.Entity {
