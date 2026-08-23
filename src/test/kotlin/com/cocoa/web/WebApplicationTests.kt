@@ -18,12 +18,14 @@ import com.cocoa.web.repository.ResearcherRepository
 import com.cocoa.web.repository.SectionRepository
 import com.cocoa.web.repository.TaskRepository
 import com.cocoa.web.repository.UserRepository
+import com.cocoa.web.security.UserPrincipal
 import com.cocoa.web.security.WithMockPrincipal
 import com.cocoa.web.service.AuthenticationService
 import com.cocoa.web.service.CookieService
 import com.cocoa.web.service.FormResponseService
 import com.cocoa.web.service.FormService
 import com.cocoa.web.service.HarvestAnalyticsService
+import com.cocoa.web.service.JwtTokenService
 import com.cocoa.web.service.ResearcherService
 import com.cocoa.web.service.SpatialHarvestAnalyticsService
 import com.cocoa.web.service.TaskService
@@ -34,11 +36,14 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.ActiveProfiles
@@ -88,6 +93,9 @@ class WebApplicationTests {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var jwtTokenService: JwtTokenService
 
     // ---- Repositories: never actually used at runtime (controllers/services
     // are mocked below), but Spring needs them to exist for the context to load.
@@ -170,6 +178,36 @@ class WebApplicationTests {
     fun apiDocsIsAccessibleWithoutAuth() {
         mockMvc.perform(get("/api-docs"))
             .andExpect { result -> assert(result.response.status != 401) { "API docs must not require auth" } }
+    }
+
+    // BE-4: a token minted with generate() carries userId + permissions,
+    // so JwtAuthenticationFilter should authorize this request entirely
+    // from the token's own claims -- userRepository.fetchUser() (the
+    // 4-table join) must never run for it.
+    @Test
+    fun validToken_authorizesWithoutHittingUserRepository() {
+        val now = LocalDateTime.now()
+        val principal =
+            UserPrincipal(
+                User.Entity(
+                    userId = UUID.randomUUID(),
+                    username = "claims-only@example.com",
+                    passwordHash = "irrelevant",
+                    isPasswordReset = false,
+                    roles = emptyList(),
+                    permissions = listOf("read:task:all"),
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        val token = jwtTokenService.generate(principal)
+
+        whenever(taskService.getTasks()).thenReturn(emptyList())
+
+        mockMvc.perform(get("/tasks").header(HttpHeaders.AUTHORIZATION, "Bearer $token"))
+            .andExpect(status().isOk)
+
+        verify(userRepository, never()).fetchUser(any())
     }
 
     // ----------------------------------------------------------------------
