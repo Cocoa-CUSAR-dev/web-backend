@@ -16,6 +16,7 @@ object Question {
         val isActive: Boolean,
         val sortOrder: Int,
         val choices: List<Choice>?,
+        val validationRule: JsonNode?,
     )
 
     data class Choice(

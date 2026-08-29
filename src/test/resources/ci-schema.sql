@@ -161,6 +161,10 @@ CREATE TABLE form.question (
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     sort_order INTEGER
 );
+CREATE TABLE form.field_validation_rule (
+    field_name VARCHAR(255) PRIMARY KEY,
+    validation_rule JSONB NOT NULL
+);
 CREATE TABLE form.response (
     response_id UUID PRIMARY KEY,
     task_log_id UUID NOT NULL,
