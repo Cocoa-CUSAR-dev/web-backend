@@ -9,7 +9,7 @@ object Task {
         val title: String,
         val description: String,
         val taskType: String,
-        val openAt: LocalDateTime,
-        val closeAt: LocalDateTime,
+        val openAt: LocalDateTime?,
+        val closeAt: LocalDateTime?,
     )
 }
