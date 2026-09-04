@@ -1,6 +1,7 @@
 package com.cocoa.web.security
 
 import com.cocoa.web.config.JwtProperties
+import com.cocoa.web.model.User
 import com.cocoa.web.service.CookieService
 import com.cocoa.web.service.CustomUserDetailService
 import com.cocoa.web.service.JwtTokenService
@@ -12,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.time.LocalDateTime
 
 @Component
 class JwtAuthenticationFilter(
@@ -45,11 +47,7 @@ class JwtAuthenticationFilter(
         val username = jwtTokenService.getUsername(jwtToken)
         val userDetails =
             username?.let {
-                try {
-                    userDetailService.loadUserByUsername(it)
-                } catch (ex: UsernameNotFoundException) {
-                    null
-                }
+                buildPrincipalFromClaims(jwtToken, it) ?: loadPrincipalFromDatabase(it)
             } ?: run {
                 if (fromCookie) response.addCookie(cookieService.removeCookie(jwtProperties.name))
                 filterChain.doFilter(request, response)
@@ -64,6 +62,45 @@ class JwtAuthenticationFilter(
 
         updateContext(userDetails)
         filterChain.doFilter(request, response)
+    }
+
+    // BE-4: userId + permissions ride in the token (see JwtTokenService.generate),
+    // so a request carrying a valid token can be authorized without hitting
+    // UserRepository.fetchUser()'s 4-table join. Null on any missing/malformed
+    // claim -- including a token issued before this change -- so the caller
+    // falls back to the real DB lookup instead of treating it as invalid.
+    private fun buildPrincipalFromClaims(
+        jwtToken: String,
+        username: String,
+    ): UserPrincipal? {
+        val userId = jwtTokenService.getUserId(jwtToken) ?: return null
+        val permissions = jwtTokenService.getPermissions(jwtToken) ?: return null
+
+        // Fields below this point are never read once a request is
+        // authenticated (confirmed: every getAuthenticatedUser() call site
+        // only reads .userId) -- they exist purely to satisfy User.Entity's
+        // shape, not because a controller uses them.
+        val placeholderTime = LocalDateTime.now()
+        return UserPrincipal(
+            User.Entity(
+                userId = userId,
+                username = username,
+                passwordHash = "irrelevant",
+                isPasswordReset = false,
+                roles = emptyList(),
+                permissions = permissions,
+                createdAt = placeholderTime,
+                updatedAt = placeholderTime,
+            ),
+        )
+    }
+
+    private fun loadPrincipalFromDatabase(username: String): UserPrincipal? {
+        return try {
+            userDetailService.loadUserByUsername(username)
+        } catch (ex: UsernameNotFoundException) {
+            null
+        }
     }
 
     private fun isCurrentlyAuthenticated(): Boolean {

@@ -4,6 +4,7 @@ import com.cocoa.generated.agriculture.Tables.FARM
 import com.cocoa.generated.collection.Tables.HARVEST
 import com.cocoa.generated.collection.Tables.HARVEST_GRADE_DETAIL
 import com.cocoa.web.base.BaseRepository
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.model.Analytics
 import com.cocoa.web.util.dateTrunc
 import com.cocoa.web.util.withDateRange
@@ -76,7 +77,10 @@ class HarvestRepository(
         return fetchSpatialScalarMetric(filter, DSL.count()).toLong()
     }
 
-    fun fetchHarvestExportData(): List<Record> {
+    // BE-9: same fix as FarmRepository.fetchFarmExportData -- paged instead
+    // of a single unbounded .fetch(), with harvest_id added to the order so
+    // rows sharing a harvest_date don't reshuffle across pages.
+    fun fetchHarvestExportData(pageRequest: PageRequest): List<Record> {
         return dsl.select(
             HARVEST.HARVEST_DATE,
             FARM.FARM_NAME,
@@ -93,7 +97,9 @@ class HarvestRepository(
             .from(HARVEST)
             .join(HARVEST_GRADE_DETAIL).on(HARVEST_GRADE_DETAIL.HARVEST_ID.eq(HARVEST.HARVEST_ID))
             .join(FARM).on(FARM.FARM_ID.eq(HARVEST.FARM_ID))
-            .orderBy(HARVEST.HARVEST_DATE.desc())
+            .orderBy(HARVEST.HARVEST_DATE.desc(), HARVEST.HARVEST_ID)
+            .limit(pageRequest.size)
+            .offset(pageRequest.offset)
             .fetch()
             .map { it as Record }
     }

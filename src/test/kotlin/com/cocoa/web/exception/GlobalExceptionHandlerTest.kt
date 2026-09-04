@@ -1,10 +1,15 @@
 package com.cocoa.web.exception
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.cocoa.web.WebApplicationTests
 import com.cocoa.web.security.WithMockPrincipal
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.slf4j.LoggerFactory
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -57,13 +62,43 @@ class GlobalExceptionHandlerTest : WebApplicationTests() {
     @Test
     @WithMockPrincipal(authorities = ["read:profile:own"])
     fun genericException_mapsTo500() {
+        // BE-7: the raw exception message ("boom") must never reach the
+        // client -- it could be a JDBC/jOOQ failure carrying SQL/schema
+        // details. Client sees a generic message; the real one is logged
+        // server-side instead (see genericException_isLogged below).
         whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
             throw RuntimeException("boom")
         }
 
         mockMvc.perform(get("/auth/me"))
             .andExpect(status().isInternalServerError)
-            .andExpect(jsonPath("$.error").value("boom"))
+            .andExpect(jsonPath("$.error").value("Internal server error"))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:profile:own"])
+    fun genericException_isLogged() {
+        val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+
+        try {
+            whenever(userService.getUserDetail(any<UUID>())).thenAnswer {
+                throw RuntimeException("boom")
+            }
+
+            mockMvc.perform(get("/auth/me"))
+                .andExpect(status().isInternalServerError)
+
+            val errorEvents = appender.list.filter { it.level == Level.ERROR }
+            assert(errorEvents.isNotEmpty()) { "Expected the unhandled exception to be logged at ERROR" }
+            assert(errorEvents.any { it.throwableProxy?.message == "boom" }) {
+                "Expected the logged event to carry the original exception, not just a generic message"
+            }
+        } finally {
+            logger.detachAppender(appender)
+        }
     }
 
     @Test

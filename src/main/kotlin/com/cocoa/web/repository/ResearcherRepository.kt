@@ -4,6 +4,7 @@ import com.cocoa.generated.auth.Tables.ROLE
 import com.cocoa.generated.auth.Tables.USER_ROLE
 import com.cocoa.generated.research.Tables.RESEARCHER
 import com.cocoa.web.base.BaseRepository
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.model.Researcher
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -52,6 +53,9 @@ class ResearcherRepository(
         return record?.toEntity()
     }
 
+    // BE-9: was an unbounded .fetch() -- added a stable sort (last/first
+    // name, then user_id as a tiebreaker) plus limit/offset from the
+    // filter's own page/size fields.
     fun fetchResearchers(filter: Researcher.Query.Filter): List<Researcher.Entity> {
         val conditions = mutableListOf<Condition>()
 
@@ -59,13 +63,17 @@ class ResearcherRepository(
         filter.lastName?.let { conditions.add(RESEARCHER.LAST_NAME.eq(it)) }
         filter.organization?.let { conditions.add(RESEARCHER.ORGANIZATION.eq(it)) }
 
-        val query = dsl.selectFrom(RESEARCHER)
+        val pageRequest = PageRequest(filter.page, filter.size)
+        // .where() with an empty condition list is a no-op in jOOQ (adds
+        // no predicate), so this covers both the filtered and unfiltered
+        // case without branching on conditions.isEmpty().
         val records =
-            if (conditions.isNotEmpty()) {
-                query.where(conditions).fetch()
-            } else {
-                query.fetch()
-            }
+            dsl.selectFrom(RESEARCHER)
+                .where(conditions)
+                .orderBy(RESEARCHER.LAST_NAME, RESEARCHER.FIRST_NAME, RESEARCHER.USER_ID)
+                .limit(pageRequest.size)
+                .offset(pageRequest.offset)
+                .fetch()
 
         return records.map { it.toEntity() }
     }
