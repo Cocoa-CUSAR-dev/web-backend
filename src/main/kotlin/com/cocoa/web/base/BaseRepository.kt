@@ -2,6 +2,21 @@ package com.cocoa.web.base
 
 import org.jooq.DSLContext
 
+// BE-9: shared page/size -> offset math so every repository's .limit()/
+// .offset() call agrees on the same bounds and defaults, instead of each
+// one hand-rolling `page * size` and picking its own cap.
+data class PageRequest(
+    val page: Int = 0,
+    val size: Int = 50,
+) {
+    init {
+        require(page >= 0) { "page must be >= 0" }
+        require(size in 1..500) { "size must be between 1 and 500" }
+    }
+
+    val offset: Int get() = page * size
+}
+
 abstract class BaseRepository(
     protected val dsl: DSLContext,
 ) {

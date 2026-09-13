@@ -5,13 +5,18 @@ import com.cocoa.generated.ref.Tables.DISTRICT_CONSTANT
 import com.cocoa.generated.ref.Tables.PROVINCE_CONSTANT
 import com.cocoa.generated.ref.Tables.SUBDISTRICT_CONSTANT
 import com.cocoa.web.base.BaseRepository
+import com.cocoa.web.base.PageRequest
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.springframework.stereotype.Repository
 
 @Repository
 class FarmRepository(dsl: DSLContext) : BaseRepository(dsl) {
-    fun fetchFarmExportData(): List<Record> {
+    // BE-9: was an unbounded .fetch() loading every farm row into memory
+    // for the Excel export. XlsxService now pages through this instead of
+    // calling it once -- the existing orderBy is what makes that safe
+    // (same order every page, no skipped/duplicated rows).
+    fun fetchFarmExportData(pageRequest: PageRequest): List<Record> {
         return dsl.select(
             FARM.FARM_NAME,
             FARM.FOUND_DATE,
@@ -28,7 +33,9 @@ class FarmRepository(dsl: DSLContext) : BaseRepository(dsl) {
             .leftJoin(PROVINCE_CONSTANT).on(FARM.PROVINCE_ID.eq(PROVINCE_CONSTANT.PROVINCE_ID))
             .leftJoin(DISTRICT_CONSTANT).on(FARM.DISTRICT_ID.eq(DISTRICT_CONSTANT.DISTRICT_ID))
             .leftJoin(SUBDISTRICT_CONSTANT).on(FARM.SUBDISTRICT_ID.eq(SUBDISTRICT_CONSTANT.SUBDISTRICT_ID))
-            .orderBy(FARM.FARM_NAME.asc())
+            .orderBy(FARM.FARM_NAME.asc(), FARM.FARM_ID)
+            .limit(pageRequest.size)
+            .offset(pageRequest.offset)
             .fetch()
             .map { it as Record }
     }

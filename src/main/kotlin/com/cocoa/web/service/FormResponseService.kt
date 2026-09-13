@@ -1,6 +1,7 @@
 package com.cocoa.web.service
 
 import com.cocoa.web.base.BaseService
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.FormResponse
 import com.cocoa.web.repository.FormResponseRepository
@@ -23,7 +24,10 @@ class FormResponseService(
             ?: throw EntityNotFoundException("Form Response Not Found")
     }
 
-    fun getUserResponse(taskId: UUID): List<FormResponse.Detail> {
-        return formResponseRepository.fetchUserResponses(taskId)
+    fun getUserResponse(
+        taskId: UUID,
+        pageRequest: PageRequest = PageRequest(),
+    ): List<FormResponse.Detail> {
+        return formResponseRepository.fetchUserResponses(taskId, pageRequest)
     }
 }

@@ -40,6 +40,8 @@ object Researcher {
             val firstName: String? = null,
             val lastName: String? = null,
             val organization: String? = null,
+            val page: Int = 0,
+            val size: Int = 50,
         )
     }
 

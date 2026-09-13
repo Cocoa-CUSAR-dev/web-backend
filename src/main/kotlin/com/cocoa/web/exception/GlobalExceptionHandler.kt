@@ -2,6 +2,7 @@ package com.cocoa.web.exception
 
 import com.cocoa.web.model.ApiResponse
 import com.cocoa.web.model.toApiResponse
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+    private val logger = LoggerFactory.getLogger(this::class.java)
+
     @ExceptionHandler(EntityNotFoundException::class)
     fun handleNotFound(ex: EntityNotFoundException) =
         ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -69,8 +72,18 @@ class GlobalExceptionHandler {
         ResponseEntity.status(HttpStatus.NO_CONTENT) // 204 No Content
             .body(ex.toApiResponse<Unit>())
 
+    // BE-7: this is the catch-all for anything not already mapped above --
+    // a JDBC/jOOQ failure, a NullPointerException, anything unanticipated.
+    // Previously ex.message went straight to the client (could leak SQL/
+    // schema details) and nothing was logged server-side, so an incident
+    // like this was both invisible to us and informative to the caller --
+    // backwards. Typed handlers above (404/400/403/etc.) keep echoing
+    // their message since those are deliberate, user-facing validation
+    // errors, not internals leakage.
     @ExceptionHandler(Exception::class)
-    fun handleGeneric(ex: Exception) =
-        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(ex.toApiResponse<Unit>())
+    fun handleGeneric(ex: Exception): ResponseEntity<ApiResponse<Unit>> {
+        logger.error("Unhandled exception", ex)
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ApiResponse(value = null, error = "Internal server error"))
+    }
 }

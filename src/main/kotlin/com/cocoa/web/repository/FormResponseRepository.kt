@@ -9,6 +9,7 @@ import com.cocoa.generated.form.Tables.TASK
 import com.cocoa.generated.form.Tables.TASK_FORM
 import com.cocoa.generated.processing.Tables.PROCESSOR
 import com.cocoa.web.base.BaseRepository
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.FormResponse
 import org.jooq.DSLContext
@@ -62,7 +63,16 @@ class FormResponseRepository(
         return record?.toFormResponseEntity()
     }
 
-    fun fetchUserResponses(taskId: UUID): List<FormResponse.Detail> {
+    // BE-9: this pivots per-submitter rows into one row per question, so
+    // the actual unbounded fetch is `responses` below (one row per person
+    // who submitted against this task) -- paginating that bounds it the
+    // same way a plain list endpoint would, without changing the pivoted
+    // output shape. response_id is the order key since nothing else here
+    // is guaranteed unique/stable across pages.
+    fun fetchUserResponses(
+        taskId: UUID,
+        pageRequest: PageRequest = PageRequest(),
+    ): List<FormResponse.Detail> {
         val task = dsl.selectFrom(TASK).where(TASK.TASK_ID.eq(taskId)).fetchOne() ?: throw EntityNotFoundException("Task Not Found")
 
         val responses =
@@ -76,6 +86,9 @@ class FormResponseRepository(
                 .leftJoin(FARMER).on(USER_ACCOUNT.USER_ID.eq(FARMER.USER_ID))
                 .leftJoin(PROCESSOR).on(USER_ACCOUNT.USER_ID.eq(PROCESSOR.USER_ID))
                 .where(RESPONSE.TASK_LOG_ID.eq(taskId))
+                .orderBy(RESPONSE.RESPONSE_ID)
+                .limit(pageRequest.size)
+                .offset(pageRequest.offset)
                 .fetch()
 
         if (responses.isEmpty()) return emptyList()
