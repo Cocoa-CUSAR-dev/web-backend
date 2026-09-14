@@ -349,6 +349,7 @@ class WebApplicationTests {
                 formId = formId,
                 title = "Form Title",
                 description = "Description",
+                isMultipleSubmit = true,
                 sections = emptyList(),
             ),
         )
@@ -356,6 +357,10 @@ class WebApplicationTests {
         mockMvc.perform(get("/forms/{formId}", formId))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.value.title").value("Form Title"))
+            // The whole point of putting the flag on Detail: it has to
+            // actually reach the wire, since /service/forms/{formId} is how
+            // the chatbot and Go learn it.
+            .andExpect(jsonPath("$.value.isMultipleSubmit").value(true))
     }
 
     @Test

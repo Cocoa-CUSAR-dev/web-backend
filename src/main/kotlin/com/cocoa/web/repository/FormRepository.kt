@@ -69,6 +69,7 @@ class FormRepository(
             formId = first.get(TASK_FORM.FORM_ID),
             title = first.get(TASK_FORM.TITLE),
             description = first.get(TASK_FORM.DESCRIPTION),
+            isMultipleSubmit = first.get(TASK_FORM.IS_MULTIPLE_SUBMIT),
             sections = buildSections(records),
         )
     }
@@ -98,6 +99,7 @@ class FormRepository(
                     .set(TASK_FORM.TITLE, request.title)
                     .set(TASK_FORM.DESCRIPTION, request.description)
                     .set(TASK_FORM.HANDLER, request.handler)
+                    .set(TASK_FORM.IS_MULTIPLE_SUBMIT, request.isMultipleSubmit)
                     .returning(TASK_FORM.FORM_ID)
                     .fetchOne()?.get(TASK_FORM.FORM_ID)
                     ?: throw IllegalStateException("Form creation failed")
@@ -148,6 +150,16 @@ class FormRepository(
                 .set(TASK_FORM.DESCRIPTION, request.description)
                 .where(TASK_FORM.FORM_ID.eq(formId))
                 .execute()
+
+            // Separate statement, only when the caller actually sent the
+            // field -- see Form.Request.Update.isMultipleSubmit for why
+            // null has to mean "leave it alone" rather than "set false".
+            request.isMultipleSubmit?.let { isMultipleSubmit ->
+                transactionDsl.update(TASK_FORM)
+                    .set(TASK_FORM.IS_MULTIPLE_SUBMIT, isMultipleSubmit)
+                    .where(TASK_FORM.FORM_ID.eq(formId))
+                    .execute()
+            }
 
             val existingSectionIds =
                 transactionDsl.select(SECTION.SECTION_ID)
@@ -246,6 +258,7 @@ class FormRepository(
             TASK_FORM.FORM_ID,
             TASK_FORM.TITLE,
             TASK_FORM.DESCRIPTION,
+            TASK_FORM.IS_MULTIPLE_SUBMIT,
             SECTION.SECTION_ID,
             SECTION.TITLE,
             SECTION.DESCRIPTION,
