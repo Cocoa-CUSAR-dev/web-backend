@@ -350,7 +350,34 @@ class WebApplicationTests {
                 title = "Form Title",
                 description = "Description",
                 isMultipleSubmit = true,
-                sections = emptyList(),
+                sections =
+                    listOf(
+                        Section.Detail(
+                            sectionId = UUID.randomUUID(),
+                            title = "Section",
+                            description = null,
+                            sortOrder = 0,
+                            isActive = true,
+                            questions =
+                                listOf(
+                                    Question.Entity(
+                                        questionId = UUID.randomUUID(),
+                                        sectionId = UUID.randomUUID(),
+                                        label = "แปลงที่ดำเนินการ",
+                                        inputType = "OPTION",
+                                        description = null,
+                                        fieldName = "plot_id",
+                                        defaultValue = null,
+                                        isMandatory = false,
+                                        isActive = true,
+                                        carryForward = true,
+                                        sortOrder = 1,
+                                        choices = emptyList(),
+                                        validationRule = null,
+                                    ),
+                                ),
+                        ),
+                    ),
             ),
         )
 
@@ -361,6 +388,10 @@ class WebApplicationTests {
             // actually reach the wire, since /service/forms/{formId} is how
             // the chatbot and Go learn it.
             .andExpect(jsonPath("$.value.isMultipleSubmit").value(true))
+            // Same reasoning for carry-forward: it has to reach the question
+            // as it's serialised, since that's the only way the chatbot learns
+            // which answers to carry into the next submission.
+            .andExpect(jsonPath("$.value.sections[0].questions[0].carryForward").value(true))
     }
 
     @Test

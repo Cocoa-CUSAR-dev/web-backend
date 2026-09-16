@@ -123,6 +123,7 @@ class FormRepository(
                         .set(QUESTION.INPUT_TYPE, question.inputType)
                         .set(QUESTION.FIELD_NAME, question.fieldName)
                         .set(QUESTION.IS_MANDATORY, question.isMandatory)
+                        .set(QUESTION.CARRY_FORWARD, question.carryForward)
                         .set(QUESTION.SORT_ORDER, question.sortOrder)
                         .set(QUESTION.DEFAULT_VALUE, question.defaultValue)
                         .execute()
@@ -211,6 +212,14 @@ class FormRepository(
                                 .set(QUESTION.FIELD_NAME, questionReq.fieldName)
                                 .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
                                 .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                // null = leave as-is (see Question.Request.Update
+                                // .carryForward); setting the column to itself
+                                // keeps this one statement instead of a second
+                                // conditional round-trip per question.
+                                .set(
+                                    QUESTION.CARRY_FORWARD,
+                                    questionReq.carryForward?.let { DSL.inline(it) } ?: QUESTION.CARRY_FORWARD,
+                                )
                                 .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
                                 .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
                                 .where(QUESTION.QUESTION_ID.eq(questionReq.questionId))
@@ -225,6 +234,7 @@ class FormRepository(
                                 .set(QUESTION.FIELD_NAME, questionReq.fieldName)
                                 .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
                                 .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                .set(QUESTION.CARRY_FORWARD, questionReq.carryForward ?: false)
                                 .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
                                 .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
                                 .returning(QUESTION.QUESTION_ID)
@@ -273,6 +283,7 @@ class FormRepository(
             QUESTION.DEFAULT_VALUE,
             QUESTION.IS_MANDATORY,
             QUESTION.IS_ACTIVE,
+            QUESTION.CARRY_FORWARD,
             QUESTION.SORT_ORDER,
             FIELD_VALIDATION_RULE.VALIDATION_RULE,
         )
@@ -423,6 +434,7 @@ class FormRepository(
             defaultValue = this.get(QUESTION.DEFAULT_VALUE),
             isMandatory = this.get(QUESTION.IS_MANDATORY),
             isActive = this.get(QUESTION.IS_ACTIVE),
+            carryForward = this.get(QUESTION.CARRY_FORWARD),
             sortOrder = this.get(QUESTION.SORT_ORDER),
             choices =
                 if (inputType == "OPTION") {
