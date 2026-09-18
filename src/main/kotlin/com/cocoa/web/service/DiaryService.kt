@@ -2,6 +2,7 @@ package com.cocoa.web.service
 
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.exception.PermissionDeniedException
+import com.cocoa.web.model.Diary
 import com.cocoa.web.repository.DiaryRepository
 import com.cocoa.web.repository.FormResponseRepository
 import org.slf4j.LoggerFactory
@@ -26,6 +27,14 @@ class DiaryService(
     private val diaryLlmClient: DiaryLlmClient,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    fun getByDate(
+        userId: UUID,
+        date: LocalDate,
+    ): Diary.Entity {
+        return diaryRepository.findByUserAndDate(userId, date)
+            ?: throw EntityNotFoundException("No diary entry for $date")
+    }
 
     // Called right after the chatbot's submit_task succeeds. `userId` is
     // caller-supplied since there's no farmer JWT on that path --
