@@ -72,6 +72,11 @@ class GlobalExceptionHandler {
         ResponseEntity.status(HttpStatus.NO_CONTENT) // 204 No Content
             .body(ex.toApiResponse<Unit>())
 
+    @ExceptionHandler(InvalidSsoTokenException::class)
+    fun handleInvalidSsoToken(ex: InvalidSsoTokenException) =
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(ex.toApiResponse<Unit>())
+
     // BE-7: this is the catch-all for anything not already mapped above --
     // a JDBC/jOOQ failure, a NullPointerException, anything unanticipated.
     // Previously ex.message went straight to the client (could leak SQL/
