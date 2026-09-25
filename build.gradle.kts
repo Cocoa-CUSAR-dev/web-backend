@@ -91,6 +91,11 @@ dependencies {
     // Apache POI for Excel
     implementation("org.apache.poi:poi-ooxml:5.4.0")
     implementation("org.apache.commons:commons-lang3:3.18.0")
+
+    // Error tracking (X-2d). No-op when SENTRY_DSN is unset (see
+    // application.properties) -- safe to have installed everywhere,
+    // including CI and local dev with no DSN configured.
+    implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.10.0")
 }
 
 kotlin {
