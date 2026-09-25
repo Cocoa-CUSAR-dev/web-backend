@@ -91,6 +91,11 @@ dependencies {
     // Apache POI for Excel
     implementation("org.apache.poi:poi-ooxml:5.4.0")
     implementation("org.apache.commons:commons-lang3:3.18.0")
+
+    // Structured JSON logging (X-2a) -- encodes the Logback config in
+    // logback-spring.xml as JSON instead of plain text, so logs can be
+    // shipped to a log aggregator and searched/filtered by field.
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
 }
 
 kotlin {
