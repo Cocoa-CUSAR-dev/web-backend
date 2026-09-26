@@ -163,6 +163,15 @@ class WebApplicationTests {
     }
 
     @Test
+    fun healthEndpointIsOpenWithoutAuthAndReportsOk() {
+        // H2 (application-test.properties) is up for the whole test suite,
+        // so this exercises the real DB-ping path, not a mock.
+        mockMvc.perform(get("/public/health"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("ok"))
+    }
+
+    @Test
     fun protectedTestEndpointReturns401WithoutAuth() {
         mockMvc.perform(get("/test"))
             .andExpect(status().isUnauthorized)
