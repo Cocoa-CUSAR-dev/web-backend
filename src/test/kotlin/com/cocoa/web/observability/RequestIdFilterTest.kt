@@ -2,6 +2,7 @@ package com.cocoa.web.observability
 
 import jakarta.servlet.FilterChain
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -10,6 +11,7 @@ import org.slf4j.MDC
 import org.springframework.core.io.ClassPathResource
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import java.util.UUID
 
 /**
  * Plain unit tests -- no Spring context, so these stay fast. The MockMvc
@@ -20,6 +22,9 @@ import org.springframework.mock.web.MockHttpServletResponse
  */
 class RequestIdFilterTest {
     private val filter = RequestIdFilter()
+
+    /** Mirrors the filter's own private pattern, to assert replacements are safe. */
+    private val safeIdPattern = Regex("[A-Za-z0-9._-]{1,64}")
 
     /** Runs the filter and hands back whatever the MDC held mid-chain. */
     private fun mdcDuringChain(inbound: String? = null): Pair<String?, MockHttpServletResponse> {
@@ -57,6 +62,43 @@ class RequestIdFilterTest {
         // Tomcat reuses worker threads; a value left behind here would be
         // attributed to whoever's request lands on this thread next.
         assertNull(MDC.get("request_id"))
+    }
+
+    @Test
+    fun `an inbound id that is not safe to log or forward is replaced`() {
+        // The public route prefix needs no authentication, so anything
+        // can arrive here. Replaced rather than rejected: the caller still
+        // gets served, it just does not choose what goes on our log lines.
+        val unsafe =
+            mapOf(
+                "embedded newline" to "abc\nlevel=ERROR forged log line",
+                "embedded return" to "abc\r",
+                "too long" to "a".repeat(65),
+                "space" to "has a space",
+                "blank" to " ",
+            )
+
+        unsafe.forEach { (case, inbound) ->
+            val (seen, _) = mdcDuringChain(inbound = inbound)
+
+            assertNotEquals(inbound, seen, "$case should not have been trusted")
+            assertTrue(
+                safeIdPattern.matches(seen!!),
+                "$case should be replaced with a safe generated id, got \"$seen\"",
+            )
+        }
+    }
+
+    @Test
+    fun `a generated uuid survives the round trip`() {
+        // The other two services forward exactly this shape. If it did not
+        // pass, every hop would renumber and correlation would break at
+        // the first service boundary.
+        val inbound = UUID.randomUUID().toString()
+
+        val (seen, _) = mdcDuringChain(inbound = inbound)
+
+        assertEquals(inbound, seen)
     }
 
     @Test
