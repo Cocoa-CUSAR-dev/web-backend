@@ -1,6 +1,7 @@
 package com.cocoa.web.service
 
 import com.cocoa.web.base.BaseService
+import com.cocoa.web.client.ChatbotClient
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Handler
@@ -17,6 +18,7 @@ class FormService(
     private val sectionRepository: SectionRepository,
     private val questionRepository: QuestionRepository,
     private val handlerCatalogRepository: HandlerCatalogRepository,
+    private val chatbotClient: ChatbotClient,
 ) : BaseService() {
     fun getForms(): List<Form.Entity> {
         return formRepository.fetchForms()
@@ -63,7 +65,10 @@ class FormService(
     // created forms shouldn't silently repeat that: require at least one
     // section, and each section at least one question, so a created form is
     // always actually usable end to end.
-    fun createForm(request: Form.Request.Create): Form.Detail {
+    fun createForm(
+        request: Form.Request.Create,
+        createdBy: UUID,
+    ): Form.Detail {
         require(request.title.isNotBlank()) { "Form title must not be blank" }
         require(request.handler.isNotBlank()) { "Form handler must not be blank" }
         require(request.sections.isNotEmpty()) { "A form must have at least one section" }
@@ -72,6 +77,19 @@ class FormService(
         }
 
         val formId = formRepository.createForm(request)
+
+        // Same permission as creating the form itself (create:form:all,
+        // enforced at the controller) -- reminder settings are just part
+        // of the create-form page, not a separately managed resource. A
+        // failure to create the reminder must not fail the form creation
+        // that already succeeded above -- see ChatbotClient's own
+        // best-effort reasoning.
+        if (request.reminder?.enabled == true) {
+            val taskId =
+                formRepository.findByFormId(formId)?.taskId
+                    ?: throw IllegalStateException("Form was created but its task could not be found")
+            chatbotClient.createReminderSchedule(taskId, request.reminder.timeOfDay, createdBy)
+        }
 
         return formRepository.fetchForm(formId)
             ?: throw IllegalStateException("Form was created but could not be re-fetched")
