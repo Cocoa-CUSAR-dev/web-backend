@@ -34,6 +34,7 @@ class SecurityConfig(
             arrayOf(
                 "/auth/login",
                 "/auth/register",
+                "/auth/sso/exchange",
                 "/swagger-ui/**",
                 "/swagger-ui/index.html",
                 "/api-docs/**",

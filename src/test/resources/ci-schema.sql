@@ -159,7 +159,8 @@ CREATE TABLE form.question (
     default_value JSONB,
     is_mandatory BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
-    sort_order INTEGER
+    sort_order INTEGER,
+    carry_forward BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE form.field_validation_rule (
     field_name VARCHAR(255) PRIMARY KEY,
@@ -168,8 +169,17 @@ CREATE TABLE form.field_validation_rule (
 CREATE TABLE form.response (
     response_id UUID PRIMARY KEY,
     task_log_id UUID NOT NULL,
+    task_form_id UUID,
     user_id UUID NOT NULL,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     answer JSONB,
     status VARCHAR(50)
+);
+CREATE TABLE form.diary_entry (
+    diary_entry_id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    entry_date DATE NOT NULL,
+    diary_text TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -349,13 +349,49 @@ class WebApplicationTests {
                 formId = formId,
                 title = "Form Title",
                 description = "Description",
-                sections = emptyList(),
+                isMultipleSubmit = true,
+                sections =
+                    listOf(
+                        Section.Detail(
+                            sectionId = UUID.randomUUID(),
+                            title = "Section",
+                            description = null,
+                            sortOrder = 0,
+                            isActive = true,
+                            questions =
+                                listOf(
+                                    Question.Entity(
+                                        questionId = UUID.randomUUID(),
+                                        sectionId = UUID.randomUUID(),
+                                        label = "แปลงที่ดำเนินการ",
+                                        inputType = "OPTION",
+                                        description = null,
+                                        fieldName = "plot_id",
+                                        defaultValue = null,
+                                        isMandatory = false,
+                                        isActive = true,
+                                        carryForward = true,
+                                        sortOrder = 1,
+                                        choices = emptyList(),
+                                        validationRule = null,
+                                    ),
+                                ),
+                        ),
+                    ),
             ),
         )
 
         mockMvc.perform(get("/forms/{formId}", formId))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.value.title").value("Form Title"))
+            // The whole point of putting the flag on Detail: it has to
+            // actually reach the wire, since /service/forms/{formId} is how
+            // the chatbot and Go learn it.
+            .andExpect(jsonPath("$.value.isMultipleSubmit").value(true))
+            // Same reasoning for carry-forward: it has to reach the question
+            // as it's serialised, since that's the only way the chatbot learns
+            // which answers to carry into the next submission.
+            .andExpect(jsonPath("$.value.sections[0].questions[0].carryForward").value(true))
     }
 
     @Test
