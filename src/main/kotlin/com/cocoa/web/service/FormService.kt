@@ -2,6 +2,7 @@ package com.cocoa.web.service
 
 import com.cocoa.web.base.BaseService
 import com.cocoa.web.client.ChatbotClient
+import com.cocoa.web.exception.ChatbotUnavailableException
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Handler
@@ -9,6 +10,7 @@ import com.cocoa.web.repository.FormRepository
 import com.cocoa.web.repository.HandlerCatalogRepository
 import com.cocoa.web.repository.QuestionRepository
 import com.cocoa.web.repository.SectionRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -20,6 +22,8 @@ class FormService(
     private val handlerCatalogRepository: HandlerCatalogRepository,
     private val chatbotClient: ChatbotClient,
 ) : BaseService() {
+    private val logger = LoggerFactory.getLogger(this::class.java)
+
     fun getForms(): List<Form.Entity> {
         return formRepository.fetchForms()
     }
@@ -88,7 +92,16 @@ class FormService(
             val taskId =
                 formRepository.findByFormId(formId)?.taskId
                     ?: throw IllegalStateException("Form was created but its task could not be found")
-            chatbotClient.createReminderSchedule(taskId, request.reminder.timeOfDay, createdBy)
+            try {
+                chatbotClient.createReminderSchedule(
+                    taskId,
+                    request.reminder.timeOfDay,
+                    createdBy,
+                    request.reminder.recipients,
+                )
+            } catch (e: ChatbotUnavailableException) {
+                logger.warn("form $formId was created but its reminder could not be: ${e.message}")
+            }
         }
 
         return formRepository.fetchForm(formId)

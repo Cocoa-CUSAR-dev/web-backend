@@ -9,6 +9,7 @@ import com.cocoa.generated.research.Tables.RESEARCHER
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Analytics
+import com.cocoa.web.model.Reminder
 import com.cocoa.web.model.User
 import com.cocoa.web.util.dateTrunc
 import com.cocoa.web.util.withDateRange
@@ -167,6 +168,62 @@ class UserRepository(
                     .mapNotNull { it.get(ROLE.ROLE_NAME) }
                     .distinct(),
         )
+    }
+
+    fun fetchRoleOptions(): List<Reminder.RoleOption> =
+        dsl.select(ROLE.ROLE_ID, ROLE.ROLE_NAME)
+            .from(ROLE)
+            .orderBy(ROLE.ROLE_NAME)
+            .fetch { Reminder.RoleOption(roleId = it[ROLE.ROLE_ID]!!, roleName = it[ROLE.ROLE_NAME]!!) }
+
+    fun fetchRoleNames(roleIds: Collection<UUID>): Map<UUID, String> {
+        if (roleIds.isEmpty()) return emptyMap()
+        return dsl.select(ROLE.ROLE_ID, ROLE.ROLE_NAME)
+            .from(ROLE)
+            .where(ROLE.ROLE_ID.`in`(roleIds))
+            .fetch()
+            .associate { it[ROLE.ROLE_ID]!! to it[ROLE.ROLE_NAME]!! }
+    }
+
+    fun fetchUsernames(userIds: Collection<UUID>): Map<UUID, String> {
+        if (userIds.isEmpty()) return emptyMap()
+        return dsl.select(USER_ACCOUNT.USER_ID, USER_ACCOUNT.USERNAME)
+            .from(USER_ACCOUNT)
+            .where(USER_ACCOUNT.USER_ID.`in`(userIds))
+            .fetch()
+            .associate { it[USER_ACCOUNT.USER_ID]!! to it[USER_ACCOUNT.USERNAME]!! }
+    }
+
+    /** Users for the reminder recipient picker: username match (blank = everyone), capped. */
+    fun searchUserOptions(
+        query: String,
+        limit: Int,
+    ): List<Reminder.UserOption> {
+        val condition =
+            if (query.isBlank()) {
+                DSL.trueCondition()
+            } else {
+                USER_ACCOUNT.USERNAME.containsIgnoreCase(query.trim())
+            }
+        return dsl.select(
+            USER_ACCOUNT.USER_ID,
+            USER_ACCOUNT.USERNAME,
+            arrayAggDistinct(ROLE.ROLE_NAME).`as`("roles"),
+        )
+            .from(USER_ACCOUNT)
+            .leftJoin(USER_ROLE).on(USER_ROLE.USER_ID.eq(USER_ACCOUNT.USER_ID))
+            .leftJoin(ROLE).on(ROLE.ROLE_ID.eq(USER_ROLE.ROLE_ID))
+            .where(condition)
+            .groupBy(USER_ACCOUNT.USER_ID, USER_ACCOUNT.USERNAME)
+            .orderBy(USER_ACCOUNT.USERNAME)
+            .limit(limit)
+            .fetch {
+                Reminder.UserOption(
+                    userId = it[USER_ACCOUNT.USER_ID]!!,
+                    username = it[USER_ACCOUNT.USERNAME]!!,
+                    roles = (it["roles"] as? Array<*>)?.mapNotNull { r -> r?.toString() } ?: emptyList(),
+                )
+            }
     }
 
     fun updatePassword(
