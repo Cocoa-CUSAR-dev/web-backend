@@ -159,7 +159,8 @@ CREATE TABLE form.question (
     default_value JSONB,
     is_mandatory BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
-    sort_order INTEGER
+    sort_order INTEGER,
+    carry_forward BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE form.field_validation_rule (
     field_name VARCHAR(255) PRIMARY KEY,
