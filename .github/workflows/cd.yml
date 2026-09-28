@@ -6,7 +6,7 @@ name: CD
 # job's only job is to be the CI check Render is waiting on.
 on:
   push:
-    branches: '**'
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:
@@ -14,6 +14,11 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # X-6d: this job IS the deploy gate (see the comment above) -- gating it
+    # behind a GitHub Environment means a human has to approve before it
+    # even runs, so Render can never see a passing check (and therefore
+    # never deploy) without that approval first.
+    environment: production
     # Needed so the jOOQ gradle plugin can run `generateJooq` against a real
     # database during the build. Same setup as the `build` job in ci.yml.
     services:
