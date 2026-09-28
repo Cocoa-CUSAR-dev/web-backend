@@ -13,6 +13,7 @@ import com.cocoa.web.model.Reminder
 import com.cocoa.web.model.User
 import com.cocoa.web.util.dateTrunc
 import com.cocoa.web.util.withDateRange
+import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL
@@ -98,7 +99,13 @@ class UserRepository(
         }
     }
 
-    fun fetchUser(username: String): User.Entity? {
+    fun fetchUser(username: String): User.Entity? = fetchUserEntity(USER_ACCOUNT.USERNAME.eq(username))
+
+    // Backs SsoService.mintToken -- the chatbot only ever knows a farmer's
+    // userId (via chat.conversation), never their username.
+    fun fetchUserById(userId: UUID): User.Entity? = fetchUserEntity(USER_ACCOUNT.USER_ID.eq(userId))
+
+    private fun fetchUserEntity(condition: Condition): User.Entity? {
         val record =
             dsl.select(
                 USER_ACCOUNT.USER_ID,
@@ -115,7 +122,7 @@ class UserRepository(
                 .leftJoin(ROLE).on(USER_ROLE.ROLE_ID.eq(ROLE.ROLE_ID))
                 .leftJoin(ROLE_PERMISSION).on(ROLE.ROLE_ID.eq(ROLE_PERMISSION.ROLE_ID))
                 .leftJoin(PERMISSION).on(ROLE_PERMISSION.PERMISSION_ID.eq(PERMISSION.PERMISSION_ID))
-                .where(USER_ACCOUNT.USERNAME.eq(username))
+                .where(condition)
                 .groupBy(USER_ACCOUNT.USER_ID)
                 .fetchOne()
 

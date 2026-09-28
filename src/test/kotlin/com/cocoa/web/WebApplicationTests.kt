@@ -54,6 +54,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.LocalDateTime
@@ -160,6 +161,33 @@ class WebApplicationTests {
         mockMvc.perform(get("/public/test"))
             .andExpect(status().isOk)
             .andExpect(content().string("This is Public route"))
+    }
+
+    // ----------------------------------------------------------------------
+    // RequestIdFilter (X-2e)
+    // ----------------------------------------------------------------------
+
+    @Test
+    fun requestIdIsGeneratedWhenNotProvided() {
+        mockMvc.perform(get("/public/test"))
+            .andExpect(status().isOk)
+            .andExpect(header().exists("X-Request-Id"))
+    }
+
+    @Test
+    fun requestIdIsEchoedBackWhenProvided() {
+        mockMvc.perform(get("/public/test").header("X-Request-Id", "test-request-id-123"))
+            .andExpect(status().isOk)
+            .andExpect(header().string("X-Request-Id", "test-request-id-123"))
+    }
+
+    @Test
+    fun healthEndpointIsOpenWithoutAuthAndReportsOk() {
+        // H2 (application-test.properties) is up for the whole test suite,
+        // so this exercises the real DB-ping path, not a mock.
+        mockMvc.perform(get("/public/health"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("ok"))
     }
 
     @Test
@@ -349,13 +377,49 @@ class WebApplicationTests {
                 formId = formId,
                 title = "Form Title",
                 description = "Description",
-                sections = emptyList(),
+                isMultipleSubmit = true,
+                sections =
+                    listOf(
+                        Section.Detail(
+                            sectionId = UUID.randomUUID(),
+                            title = "Section",
+                            description = null,
+                            sortOrder = 0,
+                            isActive = true,
+                            questions =
+                                listOf(
+                                    Question.Entity(
+                                        questionId = UUID.randomUUID(),
+                                        sectionId = UUID.randomUUID(),
+                                        label = "แปลงที่ดำเนินการ",
+                                        inputType = "OPTION",
+                                        description = null,
+                                        fieldName = "plot_id",
+                                        defaultValue = null,
+                                        isMandatory = false,
+                                        isActive = true,
+                                        carryForward = true,
+                                        sortOrder = 1,
+                                        choices = emptyList(),
+                                        validationRule = null,
+                                    ),
+                                ),
+                        ),
+                    ),
             ),
         )
 
         mockMvc.perform(get("/forms/{formId}", formId))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.value.title").value("Form Title"))
+            // The whole point of putting the flag on Detail: it has to
+            // actually reach the wire, since /service/forms/{formId} is how
+            // the chatbot and Go learn it.
+            .andExpect(jsonPath("$.value.isMultipleSubmit").value(true))
+            // Same reasoning for carry-forward: it has to reach the question
+            // as it's serialised, since that's the only way the chatbot learns
+            // which answers to carry into the next submission.
+            .andExpect(jsonPath("$.value.sections[0].questions[0].carryForward").value(true))
     }
 
     @Test
