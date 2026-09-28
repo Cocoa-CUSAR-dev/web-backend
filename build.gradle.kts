@@ -92,6 +92,15 @@ dependencies {
     implementation("org.apache.poi:poi-ooxml:5.4.0")
     implementation("org.apache.commons:commons-lang3:3.18.0")
 
+    // Error tracking (X-2d). No-op when SENTRY_DSN is unset (see
+    // application.properties) -- safe to have installed everywhere,
+    // including CI and local dev with no DSN configured.
+    implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.10.0")
+    // GlobalExceptionHandler's catch-all resolves every exception before
+    // SentryExceptionResolver sees it, so unhandled 500s only reach Sentry
+    // through its logger.error(...) -- which needs this appender.
+    implementation("io.sentry:sentry-logback:8.10.0")
+
     // Structured JSON logging (X-2a) -- encodes the Logback config in
     // logback-spring.xml as JSON instead of plain text, so logs can be
     // shipped to a log aggregator and searched/filtered by field.
