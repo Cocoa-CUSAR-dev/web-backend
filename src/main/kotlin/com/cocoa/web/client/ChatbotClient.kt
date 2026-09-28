@@ -9,9 +9,11 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming
 import org.slf4j.LoggerFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
+import java.net.http.HttpClient
 import java.time.LocalTime
 import java.util.UUID
 
@@ -45,7 +47,18 @@ class ChatbotClient(
     private val properties: ChatbotServiceProperties,
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
-    private val restClient = RestClient.create()
+
+    // Forced to HTTP/1.1: the JDK HttpClient's default HTTP/2-upgrade attempt
+    // silently drops the request body on a PATCH (and possibly other) calls
+    // against chatbot's uvicorn server, which only ever speaks HTTP/1.1 --
+    // confirmed by reproducing the exact same empty-body 422 with a bare
+    // java.net.http.HttpClient using its HTTP/2-preferring default, which
+    // went away the moment HTTP/1.1 was forced. Not specific to Kotlin/
+    // Spring's RestClient -- this is a JDK HttpClient + non-h2c-server quirk.
+    private val restClient =
+        RestClient.builder()
+            .requestFactory(JdkClientHttpRequestFactory(HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()))
+            .build()
 
     private fun recipientsBody(recipients: List<Reminder.Recipient>) =
         recipients.map { mapOf("type" to it.type.name, "id" to it.id.toString()) }
@@ -58,7 +71,14 @@ class ChatbotClient(
             return block()
         } catch (e: RestClientException) {
             logger.error("chatbot call failed: $what", e)
-            throw ChatbotUnavailableException("Reminder service is unavailable ($what)")
+            throw ChatbotUnavailableException("Reminder service is unavailable ($what): ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            // Thrown by the HTTP client itself when properties.url is blank/malformed
+            // (e.g. CHATBOT_SERVICE_URL unset) -- happens before any network call, so
+            // it is never a RestClientException, but it means exactly the same thing
+            // to every caller here: the chatbot is not reachable right now.
+            logger.error("chatbot call failed: $what (bad chatbot-service.url?)", e)
+            throw ChatbotUnavailableException("Reminder service is unavailable ($what): ${e.message}")
         }
     }
 
