@@ -82,7 +82,7 @@ class FormController(
     fun createForm(
         @RequestBody request: Form.Request.Create,
     ): ResponseEntity<ApiResponse<Form.Detail>> {
-        val form = formService.createForm(request)
+        val form = formService.createForm(request, getAuthenticatedUser().userId)
 
         return form.toResponseEntity(HttpStatus.CREATED)
     }

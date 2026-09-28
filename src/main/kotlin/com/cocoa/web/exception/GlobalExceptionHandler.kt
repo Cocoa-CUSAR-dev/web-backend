@@ -62,6 +62,11 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(value = null, error = message))
     }
 
+    @ExceptionHandler(ChatbotUnavailableException::class)
+    fun handleChatbotUnavailable(ex: ChatbotUnavailableException) =
+        ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ex.toApiResponse<Unit>())
+
     @ExceptionHandler(UnsupportedSheetException::class)
     fun handleUnsupportedSheet(ex: UnsupportedSheetException) =
         ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY) // 422 is great for "valid syntax, but wrong logic"

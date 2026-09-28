@@ -46,6 +46,11 @@ object Form {
             // has today -- opting in is explicit.
             val isMultipleSubmit: Boolean = false,
             val sections: List<Section.Request.Create>,
+            // Optional reminder settings, set once at form-creation time
+            // (the create-form page) rather than as a separately managed
+            // resource -- null/omitted or enabled=false means no reminder.
+            // See FormService.createForm.
+            val reminder: Reminder.Request.Create? = null,
         )
 
         // Unlike Edit (which only toggles is_active/is_mandatory on rows
