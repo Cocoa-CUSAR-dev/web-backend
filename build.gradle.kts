@@ -96,6 +96,10 @@ dependencies {
     // application.properties) -- safe to have installed everywhere,
     // including CI and local dev with no DSN configured.
     implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.10.0")
+    // GlobalExceptionHandler's catch-all resolves every exception before
+    // SentryExceptionResolver sees it, so unhandled 500s only reach Sentry
+    // through its logger.error(...) -- which needs this appender.
+    implementation("io.sentry:sentry-logback:8.10.0")
 }
 
 kotlin {
