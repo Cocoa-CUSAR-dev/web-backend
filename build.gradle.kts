@@ -100,6 +100,11 @@ dependencies {
     // SentryExceptionResolver sees it, so unhandled 500s only reach Sentry
     // through its logger.error(...) -- which needs this appender.
     implementation("io.sentry:sentry-logback:8.10.0")
+
+    // Structured JSON logging (X-2a) -- encodes the Logback config in
+    // logback-spring.xml as JSON instead of plain text, so logs can be
+    // shipped to a log aggregator and searched/filtered by field.
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
 }
 
 kotlin {
