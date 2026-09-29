@@ -27,3 +27,11 @@ class UnsupportedSheetException(
 class EmptyExportException(
     message: String = "No data available for the requested export",
 ) : RuntimeException(message)
+
+class ChatbotUnavailableException(
+    message: String = "The chatbot service is unavailable",
+) : RuntimeException(message)
+
+class InvalidSsoTokenException(
+    message: String = "Invalid or expired SSO token",
+) : RuntimeException(message)

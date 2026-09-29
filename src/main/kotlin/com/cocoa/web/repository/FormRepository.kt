@@ -69,6 +69,7 @@ class FormRepository(
             formId = first.get(TASK_FORM.FORM_ID),
             title = first.get(TASK_FORM.TITLE),
             description = first.get(TASK_FORM.DESCRIPTION),
+            isMultipleSubmit = first.get(TASK_FORM.IS_MULTIPLE_SUBMIT),
             sections = buildSections(records),
         )
     }
@@ -98,6 +99,7 @@ class FormRepository(
                     .set(TASK_FORM.TITLE, request.title)
                     .set(TASK_FORM.DESCRIPTION, request.description)
                     .set(TASK_FORM.HANDLER, request.handler)
+                    .set(TASK_FORM.IS_MULTIPLE_SUBMIT, request.isMultipleSubmit)
                     .returning(TASK_FORM.FORM_ID)
                     .fetchOne()?.get(TASK_FORM.FORM_ID)
                     ?: throw IllegalStateException("Form creation failed")
@@ -121,6 +123,7 @@ class FormRepository(
                         .set(QUESTION.INPUT_TYPE, question.inputType)
                         .set(QUESTION.FIELD_NAME, question.fieldName)
                         .set(QUESTION.IS_MANDATORY, question.isMandatory)
+                        .set(QUESTION.CARRY_FORWARD, question.carryForward)
                         .set(QUESTION.SORT_ORDER, question.sortOrder)
                         .set(QUESTION.DEFAULT_VALUE, question.defaultValue)
                         .execute()
@@ -148,6 +151,16 @@ class FormRepository(
                 .set(TASK_FORM.DESCRIPTION, request.description)
                 .where(TASK_FORM.FORM_ID.eq(formId))
                 .execute()
+
+            // Separate statement, only when the caller actually sent the
+            // field -- see Form.Request.Update.isMultipleSubmit for why
+            // null has to mean "leave it alone" rather than "set false".
+            request.isMultipleSubmit?.let { isMultipleSubmit ->
+                transactionDsl.update(TASK_FORM)
+                    .set(TASK_FORM.IS_MULTIPLE_SUBMIT, isMultipleSubmit)
+                    .where(TASK_FORM.FORM_ID.eq(formId))
+                    .execute()
+            }
 
             val existingSectionIds =
                 transactionDsl.select(SECTION.SECTION_ID)
@@ -199,6 +212,14 @@ class FormRepository(
                                 .set(QUESTION.FIELD_NAME, questionReq.fieldName)
                                 .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
                                 .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                // null = leave as-is (see Question.Request.Update
+                                // .carryForward); setting the column to itself
+                                // keeps this one statement instead of a second
+                                // conditional round-trip per question.
+                                .set(
+                                    QUESTION.CARRY_FORWARD,
+                                    questionReq.carryForward?.let { DSL.inline(it) } ?: QUESTION.CARRY_FORWARD,
+                                )
                                 .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
                                 .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
                                 .where(QUESTION.QUESTION_ID.eq(questionReq.questionId))
@@ -213,6 +234,7 @@ class FormRepository(
                                 .set(QUESTION.FIELD_NAME, questionReq.fieldName)
                                 .set(QUESTION.IS_MANDATORY, questionReq.isMandatory)
                                 .set(QUESTION.IS_ACTIVE, questionReq.isActive)
+                                .set(QUESTION.CARRY_FORWARD, questionReq.carryForward ?: false)
                                 .set(QUESTION.SORT_ORDER, questionReq.sortOrder)
                                 .set(QUESTION.DEFAULT_VALUE, questionReq.defaultValue)
                                 .returning(QUESTION.QUESTION_ID)
@@ -246,6 +268,7 @@ class FormRepository(
             TASK_FORM.FORM_ID,
             TASK_FORM.TITLE,
             TASK_FORM.DESCRIPTION,
+            TASK_FORM.IS_MULTIPLE_SUBMIT,
             SECTION.SECTION_ID,
             SECTION.TITLE,
             SECTION.DESCRIPTION,
@@ -260,6 +283,7 @@ class FormRepository(
             QUESTION.DEFAULT_VALUE,
             QUESTION.IS_MANDATORY,
             QUESTION.IS_ACTIVE,
+            QUESTION.CARRY_FORWARD,
             QUESTION.SORT_ORDER,
             FIELD_VALIDATION_RULE.VALIDATION_RULE,
         )
@@ -343,47 +367,78 @@ class FormRepository(
             return fetchGradeCodeChoices()
         }
 
-        val (table, idField, nameField) =
-            refChoiceFieldCache.getOrPut(fieldName) {
-                // CB-5(c): drying_facility_type_id is otherwise a clean
-                // surrogate-key match (both drying_facility_type_id and
-                // drying_facility_type_name exist on the real ref table,
-                // exactly what the convention below expects) -- only the
-                // TABLE name breaks convention: the naive derivation gives
-                // "drying_facility_type_constant", but the real table is
-                // ref.drying_facility_constant (no "_type"). One targeted
-                // override rather than a whole separate query shape, since
-                // id/name resolution doesn't need one here.
-                val tableName =
-                    when (fieldName) {
-                        "drying_facility_type_id" -> "drying_facility_constant"
-                        else -> fieldName.removeSuffix("_id") + "_constant"
-                    }
-                val namePrefix = fieldName.removeSuffix("_id") + "_name"
-
-                val columns = refSchemaColumns(tableName)
-                if (columns.isEmpty()) {
-                    throw IllegalArgumentException("Unknown ref table: $tableName")
-                }
-
-                // fieldName (e.g. plot_id) is also the ref table's own PK column
-                // name by convention, verified against every *_constant table.
-                val idField =
-                    columns.firstOrNull { it == fieldName }
-                        ?: throw IllegalArgumentException("No id field named '$fieldName' in $tableName")
-
-                val nameField =
-                    columns.firstOrNull { it.startsWith(namePrefix) }
-                        ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
-
-                RefChoiceFields(tableName, idField, nameField)
-            }
+        val (table, idField, nameField) = resolveRefChoiceFields(fieldName)
 
         val idCol = DSL.field(DSL.name("ref", table, idField))
         val nameCol = DSL.field(DSL.name("ref", table, nameField))
         return dsl.select(idCol, nameCol)
             .from(DSL.table(DSL.name("ref", table)))
             .fetch { record -> Question.Choice(id = record.get(idCol).toString(), name = record.get(nameCol).toString()) }
+    }
+
+    // Extracted from fetchRefChoices so US2-6's resolveRefLabel (a targeted
+    // single-row lookup, below) can reuse the exact same table/column
+    // resolution and cache instead of duplicating it.
+    private fun resolveRefChoiceFields(fieldName: String): RefChoiceFields =
+        refChoiceFieldCache.getOrPut(fieldName) {
+            // CB-5(c): drying_facility_type_id is otherwise a clean
+            // surrogate-key match (both drying_facility_type_id and
+            // drying_facility_type_name exist on the real ref table,
+            // exactly what the convention below expects) -- only the
+            // TABLE name breaks convention: the naive derivation gives
+            // "drying_facility_type_constant", but the real table is
+            // ref.drying_facility_constant (no "_type"). One targeted
+            // override rather than a whole separate query shape, since
+            // id/name resolution doesn't need one here.
+            val tableName =
+                when (fieldName) {
+                    "drying_facility_type_id" -> "drying_facility_constant"
+                    else -> fieldName.removeSuffix("_id") + "_constant"
+                }
+            val namePrefix = fieldName.removeSuffix("_id") + "_name"
+
+            val columns = refSchemaColumns(tableName)
+            if (columns.isEmpty()) {
+                throw IllegalArgumentException("Unknown ref table: $tableName")
+            }
+
+            // fieldName (e.g. plot_id) is also the ref table's own PK column
+            // name by convention, verified against every *_constant table.
+            val idField =
+                columns.firstOrNull { it == fieldName }
+                    ?: throw IllegalArgumentException("No id field named '$fieldName' in $tableName")
+
+            val nameField =
+                columns.firstOrNull { it.startsWith(namePrefix) }
+                    ?: throw IllegalArgumentException("No name field starting with '$namePrefix' in $tableName")
+
+            RefChoiceFields(tableName, idField, nameField)
+        }
+
+    // US2-6 (docs-and-plan#131): reverse direction of fetchRefChoices above --
+    // given a field_name and the id a farmer's answer stored for it, resolve
+    // back to the human-readable name for daily diary text generation. Same
+    // table/column resolution, just a targeted single-row lookup by id
+    // instead of fetching every choice in the ref table.
+    fun resolveRefLabel(
+        fieldName: String,
+        id: String,
+    ): String? {
+        if (fieldName == "grade_code") {
+            // grade_code's stored value already IS ref.grade_constant.grade_name
+            // (see fetchGradeCodeChoices) -- nothing to resolve.
+            return id
+        }
+
+        val (table, idField, nameField) = resolveRefChoiceFields(fieldName)
+        val idCol = DSL.field(DSL.name("ref", table, idField))
+        val nameCol = DSL.field(DSL.name("ref", table, nameField))
+
+        return dsl.select(nameCol)
+            .from(DSL.table(DSL.name("ref", table)))
+            .where(idCol.cast(String::class.java).eq(id))
+            .fetchOne(nameCol)
+            ?.toString()
     }
 
     private fun fetchGradeCodeChoices(): List<Question.Choice> {
@@ -410,6 +465,7 @@ class FormRepository(
             defaultValue = this.get(QUESTION.DEFAULT_VALUE),
             isMandatory = this.get(QUESTION.IS_MANDATORY),
             isActive = this.get(QUESTION.IS_ACTIVE),
+            carryForward = this.get(QUESTION.CARRY_FORWARD),
             sortOrder = this.get(QUESTION.SORT_ORDER),
             choices =
                 if (inputType == "OPTION") {

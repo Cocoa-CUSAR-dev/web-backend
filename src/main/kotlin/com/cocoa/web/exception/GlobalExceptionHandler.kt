@@ -62,6 +62,11 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse(value = null, error = message))
     }
 
+    @ExceptionHandler(ChatbotUnavailableException::class)
+    fun handleChatbotUnavailable(ex: ChatbotUnavailableException) =
+        ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ex.toApiResponse<Unit>())
+
     @ExceptionHandler(UnsupportedSheetException::class)
     fun handleUnsupportedSheet(ex: UnsupportedSheetException) =
         ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY) // 422 is great for "valid syntax, but wrong logic"
@@ -70,6 +75,11 @@ class GlobalExceptionHandler {
     @ExceptionHandler(EmptyExportException::class)
     fun handleEmptyExport(ex: EmptyExportException) =
         ResponseEntity.status(HttpStatus.NO_CONTENT) // 204 No Content
+            .body(ex.toApiResponse<Unit>())
+
+    @ExceptionHandler(InvalidSsoTokenException::class)
+    fun handleInvalidSsoToken(ex: InvalidSsoTokenException) =
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(ex.toApiResponse<Unit>())
 
     // BE-7: this is the catch-all for anything not already mapped above --

@@ -3,11 +3,13 @@ package com.cocoa.web.controller
 import com.cocoa.web.base.BaseController
 import com.cocoa.web.config.JwtProperties
 import com.cocoa.web.model.ApiResponse
+import com.cocoa.web.model.Sso
 import com.cocoa.web.model.User
 import com.cocoa.web.model.User.toCreate
 import com.cocoa.web.model.toResponseEntity
 import com.cocoa.web.service.AuthenticationService
 import com.cocoa.web.service.CookieService
+import com.cocoa.web.service.SsoService
 import com.cocoa.web.service.UserService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -31,6 +33,7 @@ class AuthenticationController(
     private val userService: UserService,
     private val cookieService: CookieService,
     private val jwtProperties: JwtProperties,
+    private val ssoService: SsoService,
 ) : BaseController() {
     @PreAuthorize("hasAuthority('read:profile:own')")
     @Operation(summary = "Get current user profile")
@@ -60,6 +63,20 @@ class AuthenticationController(
             throw RuntimeException("Already logged in")
         }
         val jwtCookie = authenticationService.authenticate(loginRequest)
+        response.addCookie(jwtCookie)
+        return "Logged in successfully".toResponseEntity(HttpStatus.OK)
+    }
+
+    @Operation(
+        summary = "Exchange an SSO token for a full session",
+        description = "Used by the LINE diary card's 'view full history' deep link.",
+    )
+    @PostMapping("/sso/exchange")
+    fun exchangeSso(
+        @RequestBody request: Sso.Request.Exchange,
+        response: HttpServletResponse,
+    ): ResponseEntity<ApiResponse<String>> {
+        val jwtCookie = ssoService.exchangeForCookie(request.token)
         response.addCookie(jwtCookie)
         return "Logged in successfully".toResponseEntity(HttpStatus.OK)
     }
