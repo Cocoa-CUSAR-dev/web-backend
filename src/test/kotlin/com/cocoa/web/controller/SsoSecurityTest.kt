@@ -6,6 +6,7 @@ import com.cocoa.web.repository.SsoUsedTokenRepository
 import com.cocoa.web.repository.UserRepository
 import com.cocoa.web.service.UserService
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
@@ -30,6 +31,9 @@ import java.util.UUID
 //
 // Written red-first: each test encodes the SECURE behaviour we want, so it
 // fails against today's code and passes once the matching fix lands.
+//   F1 -> a mint token must not double as an API bearer credential
+//   F3 -> a mint token must be single-use
+//   F5 -> the session cookie must carry a SameSite attribute
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -57,9 +61,9 @@ class SsoSecurityTest {
     @MockBean
     lateinit var userService: UserService
 
-    // F1 doesn't depend on the single-use store; F3 drives it explicitly. The
-    // real repo would hit a table H2 doesn't have, so it's mocked here and the
-    // real atomic SQL is proven by the live after-probe against Postgres.
+    // F1/F5 don't depend on the single-use store; F3 drives it explicitly.
+    // The real repo would hit a table H2 doesn't have, so it's mocked here and
+    // the real atomic SQL is proven by the live after-probe against Postgres.
     @MockBean
     lateinit var ssoUsedTokenRepository: SsoUsedTokenRepository
 
@@ -149,5 +153,37 @@ class SsoSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(secondBody),
         ).andExpect(status().isUnauthorized)
+    }
+
+    // --- F5: the session cookie must carry a SameSite attribute ---
+    @Test
+    fun `the session cookie set on exchange carries a SameSite attribute`() {
+        val farmer = farmer("farmer-f5@example.com")
+        stub(farmer)
+        whenever(ssoUsedTokenRepository.markUsedIfFirstTime(any(), any())).thenReturn(true)
+        val ssoToken = mint(farmer)
+
+        val body = objectMapper.writeValueAsString(mapOf("token" to ssoToken))
+        val cookie =
+            mockMvc.perform(
+                post("/auth/sso/exchange")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body),
+            )
+                .andExpect(status().isOk)
+                .andReturn()
+                .response
+                .getCookie(jwtProperties.name)
+                ?: error("exchange did not set a ${jwtProperties.name} cookie")
+
+        // The app's responsibility is to stamp SameSite on the cookie it hands
+        // the container; Tomcat then serialises it into the Set-Cookie header
+        // (MockMvc doesn't run that serialiser, so we assert the attribute the
+        // app set, and confirm the real header in the live after-probe).
+        assertTrue(
+            cookie.getAttribute("SameSite").equals("Lax", ignoreCase = true),
+            "session cookie must set SameSite=Lax to blunt CSRF (CSRF is disabled globally); " +
+                "got SameSite=${cookie.getAttribute("SameSite")}",
+        )
     }
 }
