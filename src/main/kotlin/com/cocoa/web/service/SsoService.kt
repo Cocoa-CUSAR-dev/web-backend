@@ -37,11 +37,23 @@ class SsoService(
             userRepository.fetchUserById(userId)
                 ?: throw EntityNotFoundException("No user found for id=$userId")
 
-        return jwtTokenService.generate(UserPrincipal(user), timeToLive = TOKEN_TTL_MS)
+        return jwtTokenService.generate(
+            UserPrincipal(user),
+            timeToLive = TOKEN_TTL_MS,
+            tokenType = JwtTokenService.SSO_TOKEN_TYPE,
+        )
     }
 
     fun exchangeForCookie(token: String): Cookie {
         if (jwtTokenService.isExpired(token)) {
+            throw InvalidSsoTokenException()
+        }
+
+        // US3-2 #125 (F1): only a token minted as an SSO token may be redeemed
+        // here. A normal session token (no token_type) or any other JWT is
+        // refused, so this endpoint can't be used to launder an unrelated token
+        // into a fresh session.
+        if (jwtTokenService.getTokenType(token) != JwtTokenService.SSO_TOKEN_TYPE) {
             throw InvalidSsoTokenException()
         }
 

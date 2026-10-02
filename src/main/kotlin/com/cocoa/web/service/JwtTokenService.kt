@@ -24,23 +24,43 @@ class JwtTokenService(
     // JwtAuthenticationFilter can authorize a request without re-running
     // UserRepository.fetchUser()'s 4-table join on every single call --
     // that join only needs to happen once, here, at token issuance.
+    //
+    // US3-2 #125 (F1): tokenType stamps a `token_type` claim so a token's
+    // intended audience is part of the signed payload. SSO mint tokens carry
+    // SSO_TOKEN_TYPE; normal session tokens pass null and carry no such claim.
+    // exchangeForCookie accepts only SSO-typed tokens, and
+    // JwtAuthenticationFilter refuses them as request credentials -- so a mint
+    // token can no longer double as a full API bearer token.
     fun generate(
         userPrincipal: UserPrincipal,
         timeToLive: Long = jwtProperties.accessTokenExpiration,
+        tokenType: String? = null,
     ): String {
         val currentTime = System.currentTimeMillis()
         val user = userPrincipal.getUser()
 
-        return Jwts.builder()
-            .claims()
-            .subject(user.username)
-            .add("userId", user.userId.toString())
-            .add("permissions", user.permissions)
+        val claims =
+            Jwts.builder()
+                .claims()
+                .subject(user.username)
+                .add("userId", user.userId.toString())
+                .add("permissions", user.permissions)
+        if (tokenType != null) {
+            claims.add(TOKEN_TYPE_CLAIM, tokenType)
+        }
+
+        return claims
             .issuedAt(Date(currentTime))
             .expiration(Date(currentTime + timeToLive))
             .and()
             .signWith(secretKey)
             .compact()
+    }
+
+    // Null when the claim is absent -- i.e. a normal session token, or any
+    // token issued before this claim existed.
+    fun getTokenType(token: String): String? {
+        return getAllClaims(token)?.get(TOKEN_TYPE_CLAIM, String::class.java)
     }
 
     fun isValid(
@@ -100,5 +120,10 @@ class JwtTokenService(
             // JJWT throws this for a null/blank/non-JWT-shaped compact string.
             null
         }
+    }
+
+    companion object {
+        const val TOKEN_TYPE_CLAIM = "token_type"
+        const val SSO_TOKEN_TYPE = "sso"
     }
 }
