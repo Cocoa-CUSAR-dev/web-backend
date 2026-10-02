@@ -4,10 +4,12 @@ import com.cocoa.web.config.JwtProperties
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.exception.InvalidSsoTokenException
 import com.cocoa.web.model.User
+import com.cocoa.web.repository.SsoUsedTokenRepository
 import com.cocoa.web.repository.UserRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import java.time.LocalDateTime
@@ -24,7 +26,9 @@ class SsoServiceTest {
     private val jwtTokenService = JwtTokenService(jwtProperties)
     private val cookieService = CookieService(cookieSecure = true)
     private val userRepository = mock<UserRepository>()
-    private val ssoService = SsoService(userRepository, jwtTokenService, cookieService, jwtProperties)
+    private val ssoUsedTokenRepository = mock<SsoUsedTokenRepository>()
+    private val ssoService =
+        SsoService(userRepository, jwtTokenService, cookieService, jwtProperties, ssoUsedTokenRepository)
 
     private val user =
         User.Entity(
@@ -59,6 +63,7 @@ class SsoServiceTest {
     fun `exchangeForCookie turns a valid mint token into a full session cookie`() {
         whenever(userRepository.fetchUserById(user.userId)).thenReturn(user)
         whenever(userRepository.fetchUser(user.username)).thenReturn(user)
+        whenever(ssoUsedTokenRepository.markUsedIfFirstTime(any(), any())).thenReturn(true)
         val token = ssoService.mintToken(user.userId)
 
         val cookie = ssoService.exchangeForCookie(token)

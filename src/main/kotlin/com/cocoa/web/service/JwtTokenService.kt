@@ -8,6 +8,8 @@ import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Date
 import java.util.UUID
 
@@ -24,7 +26,6 @@ class JwtTokenService(
     // JwtAuthenticationFilter can authorize a request without re-running
     // UserRepository.fetchUser()'s 4-table join on every single call --
     // that join only needs to happen once, here, at token issuance.
-    //
     // US3-2 #125 (F1): tokenType stamps a `token_type` claim so a token's
     // intended audience is part of the signed payload. SSO mint tokens carry
     // SSO_TOKEN_TYPE; normal session tokens pass null and carry no such claim.
@@ -35,6 +36,7 @@ class JwtTokenService(
         userPrincipal: UserPrincipal,
         timeToLive: Long = jwtProperties.accessTokenExpiration,
         tokenType: String? = null,
+        jwtId: String? = null,
     ): String {
         val currentTime = System.currentTimeMillis()
         val user = userPrincipal.getUser()
@@ -47,6 +49,12 @@ class JwtTokenService(
                 .add("permissions", user.permissions)
         if (tokenType != null) {
             claims.add(TOKEN_TYPE_CLAIM, tokenType)
+        }
+        // US3-2 #125 (F3): a jti lets exchange record a redeemed SSO token and
+        // refuse it on replay (SsoUsedTokenRepository). Session tokens pass
+        // null and carry no jti.
+        if (jwtId != null) {
+            claims.id(jwtId)
         }
 
         return claims
@@ -61,6 +69,15 @@ class JwtTokenService(
     // token issued before this claim existed.
     fun getTokenType(token: String): String? {
         return getAllClaims(token)?.get(TOKEN_TYPE_CLAIM, String::class.java)
+    }
+
+    fun getJwtId(token: String): String? {
+        return getAllClaims(token)?.id
+    }
+
+    fun getExpiration(token: String): LocalDateTime? {
+        val expiration = getAllClaims(token)?.expiration ?: return null
+        return LocalDateTime.ofInstant(expiration.toInstant(), ZoneId.systemDefault())
     }
 
     fun isValid(

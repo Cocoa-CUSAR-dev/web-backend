@@ -2,10 +2,12 @@ package com.cocoa.web.controller
 
 import com.cocoa.web.config.JwtProperties
 import com.cocoa.web.model.User
+import com.cocoa.web.repository.SsoUsedTokenRepository
 import com.cocoa.web.repository.UserRepository
 import com.cocoa.web.service.UserService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -54,6 +56,12 @@ class SsoSecurityTest {
 
     @MockBean
     lateinit var userService: UserService
+
+    // F1 doesn't depend on the single-use store; F3 drives it explicitly. The
+    // real repo would hit a table H2 doesn't have, so it's mocked here and the
+    // real atomic SQL is proven by the live after-probe against Postgres.
+    @MockBean
+    lateinit var ssoUsedTokenRepository: SsoUsedTokenRepository
 
     private fun farmer(username: String) =
         User.Entity(
@@ -113,6 +121,33 @@ class SsoSecurityTest {
         // a request on its own.
         mockMvc.perform(
             get("/auth/me").header("Authorization", "Bearer $ssoToken"),
+        ).andExpect(status().isUnauthorized)
+    }
+
+    // --- F3: an SSO mint token must be single-use ---
+    @Test
+    fun `an SSO mint token cannot be exchanged twice`() {
+        val farmer = farmer("farmer-f3@example.com")
+        stub(farmer)
+        // First redemption claims the jti (true); the replay finds it already
+        // used (false) -- exactly what the atomic INSERT ... ON CONFLICT returns.
+        whenever(ssoUsedTokenRepository.markUsedIfFirstTime(any(), any())).thenReturn(true, false)
+        val ssoToken = mint(farmer)
+
+        val firstBody = objectMapper.writeValueAsString(mapOf("token" to ssoToken))
+        mockMvc.perform(
+            post("/auth/sso/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(firstBody),
+        ).andExpect(status().isOk)
+
+        // Replaying the same token (e.g. a forwarded LINE message opened by
+        // someone else) must not mint a second session.
+        val secondBody = objectMapper.writeValueAsString(mapOf("token" to ssoToken))
+        mockMvc.perform(
+            post("/auth/sso/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(secondBody),
         ).andExpect(status().isUnauthorized)
     }
 }
