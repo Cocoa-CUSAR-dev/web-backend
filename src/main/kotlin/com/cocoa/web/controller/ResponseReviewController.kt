@@ -12,7 +12,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -42,5 +44,29 @@ class ResponseReviewController(
         val submissions = responseReviewService.getReview(taskId, aiOnly, PageRequest(page, size))
 
         return submissions.toResponseEntity(HttpStatus.OK)
+    }
+
+    @PreAuthorize("hasAuthority('update:response:all')")
+    @Operation(
+        summary = "Correct one field of a submission",
+        description = "400 if the value isn't valid for the question's type or the type can't be corrected here (choices, geo).",
+    )
+    @PatchMapping("/{responseId}/fields/{fieldName}")
+    fun correctField(
+        @PathVariable taskId: UUID,
+        @PathVariable responseId: UUID,
+        @PathVariable fieldName: String,
+        @RequestBody request: ResponseReview.Request.Correct,
+    ): ResponseEntity<ApiResponse<ResponseReview.Field>> {
+        val field =
+            responseReviewService.correctField(
+                taskId = taskId,
+                responseId = responseId,
+                fieldName = fieldName,
+                request = request,
+                correctedBy = getAuthenticatedUser().userId,
+            )
+
+        return field.toResponseEntity(HttpStatus.OK)
     }
 }

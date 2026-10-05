@@ -1,13 +1,18 @@
 package com.cocoa.web.service
 
 import com.cocoa.web.base.PageRequest
+import com.cocoa.web.exception.EntityNotFoundException
+import com.cocoa.web.model.ResponseReview
 import com.cocoa.web.repository.ResponseReviewRepository
 import com.cocoa.web.repository.ResponseReviewRepository.QuestionMeta
 import com.cocoa.web.repository.ResponseReviewRepository.SubmissionRow
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.IntNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
@@ -129,5 +134,84 @@ class ResponseReviewServiceTest {
         service.getReview(taskId, true, second)
 
         verify(repository).fetchSubmissions(taskId, true, second)
+    }
+}
+
+class ResponseReviewServiceCorrectionTest {
+    private val repository: ResponseReviewRepository = mock()
+    private val service = ResponseReviewService(repository)
+
+    private val taskId = UUID.randomUUID()
+    private val responseId = UUID.randomUUID()
+    private val reviewer = UUID.randomUUID()
+
+    private val questions =
+        listOf(
+            QuestionMeta("fan_count", "Number of fans", "INT"),
+            QuestionMeta("farm_id", "Farm", "OPTION"),
+        )
+
+    // Stands in for the real locked read-modify-write: hands the stored value
+    // to the lambda the service passed in and reports what came back.
+    private fun storedValueIs(existing: JsonNode?) {
+        whenever(repository.updateAnswerField(eq(taskId), eq(responseId), eq("fan_count"), any())).thenAnswer { call ->
+            val newValueFor = call.getArgument<(JsonNode?) -> JsonNode>(3)
+            ResponseReviewRepository.Correction(existing, newValueFor(existing))
+        }
+    }
+
+    @Test
+    fun `a valid correction is applied and returned as the field now reads`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        storedValueIs(IntNode.valueOf(5))
+        whenever(repository.fetchFieldSources(listOf(responseId)))
+            .thenReturn(mapOf(responseId to mapOf("fan_count" to "llm_extracted")))
+
+        val field = service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7", "typo"), reviewer)
+
+        assertEquals("fan_count", field.fieldName)
+        assertEquals("7", field.value)
+        assertEquals("llm_extracted", field.source)
+        assertTrue(field.editable)
+    }
+
+    @Test
+    fun `an unknown field is rejected before anything is written`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.correctField(taskId, responseId, "nope", ResponseReview.Request.Correct("7"), reviewer)
+        }
+        verify(repository, never()).updateAnswerField(any(), any(), any(), any())
+    }
+
+    @Test
+    fun `a field type that cannot be corrected is rejected before anything is written`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.correctField(taskId, responseId, "farm_id", ResponseReview.Request.Correct("abc"), reviewer)
+        }
+        verify(repository, never()).updateAnswerField(any(), any(), any(), any())
+    }
+
+    @Test
+    fun `a value that is wrong for the field type is rejected`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        storedValueIs(IntNode.valueOf(5))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("ห้า"), reviewer)
+        }
+    }
+
+    @Test
+    fun `a response that does not exist under the task is a not-found`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        whenever(repository.updateAnswerField(any(), any(), any(), any())).thenReturn(null)
+
+        assertThrows(EntityNotFoundException::class.java) {
+            service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7"), reviewer)
+        }
     }
 }

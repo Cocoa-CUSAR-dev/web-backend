@@ -32,4 +32,12 @@ object ResponseReview {
         val submittedAt: LocalDateTime?,
         val fields: List<Field>,
     )
+
+    object Request {
+        /** [reason] is optional free text for whoever audits corrections later. */
+        data class Correct(
+            val value: String,
+            val reason: String? = null,
+        )
+    }
 }

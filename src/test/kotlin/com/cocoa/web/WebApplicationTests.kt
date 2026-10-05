@@ -1,5 +1,6 @@
 package com.cocoa.web
 
+import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Analytics
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.FormResponse
@@ -557,6 +558,58 @@ class WebApplicationTests {
     fun responseReview_get_withoutReadResponsePermission_returns403() {
         mockMvc.perform(get("/tasks/{taskId}/review", UUID.randomUUID()))
             .andExpect(status().isForbidden)
+    }
+
+    private fun correctRequest(value: String) =
+        patch("/tasks/{taskId}/review/{responseId}/fields/{fieldName}", UUID.randomUUID(), UUID.randomUUID(), "fan_count")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(mapOf("value" to value, "reason" to "typo")))
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_returns200WithTheUpdatedField() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any())).thenReturn(
+            ResponseReview.Field(
+                fieldName = "fan_count",
+                label = "Number of fans",
+                inputType = "INT",
+                value = "7",
+                source = "llm_extracted",
+                editable = true,
+            ),
+        )
+
+        mockMvc.perform(correctRequest("7"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value.value").value("7"))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_withAnInvalidValue_returns400() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any()))
+            .thenThrow(IllegalArgumentException("Value must be a whole number"))
+
+        mockMvc.perform(correctRequest("abc"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("Value must be a whole number"))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_forAMissingResponse_returns404() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any()))
+            .thenThrow(EntityNotFoundException("Response not found"))
+
+        mockMvc.perform(correctRequest("7")).andExpect(status().isNotFound)
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:all"])
+    fun responseReview_correct_withOnlyReadPermission_returns403AndWritesNothing() {
+        mockMvc.perform(correctRequest("7")).andExpect(status().isForbidden)
+
+        verify(responseReviewService, never()).correctField(any(), any(), any(), any(), any())
     }
 
     // ----------------------------------------------------------------------

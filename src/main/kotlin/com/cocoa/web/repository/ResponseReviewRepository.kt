@@ -10,6 +10,7 @@ import com.cocoa.generated.processing.Tables.PROCESSOR
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.base.PageRequest
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.DSL.coalesce
@@ -41,6 +42,11 @@ class ResponseReviewRepository(
         val fieldName: String,
         val label: String,
         val inputType: String,
+    )
+
+    data class Correction(
+        val oldValue: JsonNode?,
+        val newValue: JsonNode,
     )
 
     // task_log_id holds task.task_id, despite the name (DB-1) -- same join
@@ -161,5 +167,46 @@ class ResponseReviewRepository(
             .mapValues { (_, group) ->
                 group.associate { it.get("field_name", String::class.java) to it.get("source", String::class.java) }
             }
+    }
+
+    // Rewrites one key of form.response.answer. The row is locked for the
+    // read-modify-write so two researchers correcting different fields of
+    // the same response can't overwrite each other with a stale copy of the
+    // JSON. Returns null when the response doesn't exist under this task.
+    // Every other key of the answer is left exactly as it was.
+    fun updateAnswerField(
+        taskId: UUID,
+        responseId: UUID,
+        fieldName: String,
+        newValueFor: (existing: JsonNode?) -> JsonNode,
+    ): Correction? {
+        return dsl.transactionResult { config ->
+            val tx = DSL.using(config)
+
+            val current =
+                tx.select(RESPONSE.ANSWER)
+                    .from(RESPONSE)
+                    .where(RESPONSE.RESPONSE_ID.eq(responseId))
+                    .and(RESPONSE.TASK_LOG_ID.eq(taskId))
+                    .forUpdate()
+                    .fetchOne()
+                    ?: return@transactionResult null
+
+            val answer =
+                current.get(RESPONSE.ANSWER) as? ObjectNode
+                    ?: throw IllegalArgumentException("This response has no answer data to correct")
+
+            val updated = answer.deepCopy()
+            val oldValue = updated.get(fieldName)
+            val newValue = newValueFor(oldValue)
+            updated.set<JsonNode>(fieldName, newValue)
+
+            tx.update(RESPONSE)
+                .set(RESPONSE.ANSWER, updated)
+                .where(RESPONSE.RESPONSE_ID.eq(responseId))
+                .execute()
+
+            Correction(oldValue, newValue)
+        }
     }
 }
