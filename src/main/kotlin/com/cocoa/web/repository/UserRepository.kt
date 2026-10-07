@@ -1,5 +1,6 @@
 package com.cocoa.web.repository
 
+import com.cocoa.generated.auth.Tables.LINE_IDENTITY
 import com.cocoa.generated.auth.Tables.PERMISSION
 import com.cocoa.generated.auth.Tables.ROLE
 import com.cocoa.generated.auth.Tables.ROLE_PERMISSION
@@ -28,6 +29,14 @@ class UserRepository(
     dsl: DSLContext,
     private val encoder: PasswordEncoder,
 ) : BaseRepository(dsl) {
+    // US3-2 #125 (F4): true when this user has actually linked a LINE account.
+    // SsoService.mintToken uses it so a caller holding the service key can't
+    // bootstrap a session for an arbitrary or never-linked user.
+    fun hasLinkedLineIdentity(userId: UUID): Boolean =
+        dsl.fetchExists(
+            dsl.selectOne().from(LINE_IDENTITY).where(LINE_IDENTITY.USER_ID.eq(userId)),
+        )
+
     data class MonthlyRow(val month: LocalDate, val value: Long)
 
     fun fetchMonthlyDelta(filter: Analytics.Query.UserFilter): List<MonthlyRow> {

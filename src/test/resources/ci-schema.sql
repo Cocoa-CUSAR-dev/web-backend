@@ -42,6 +42,15 @@ CREATE TABLE auth.role_permission (
     role_id UUID NOT NULL,
     permission_id UUID NOT NULL
 );
+-- US3-2 #125 (F4): jOOQ needs auth.line_identity so SsoService.mintToken can
+-- check whether a user has linked LINE (UserRepository.hasLinkedLineIdentity).
+CREATE TABLE auth.line_identity (
+    line_identity_id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.user_account (user_id),
+    line_user_id VARCHAR NOT NULL,
+    display_name VARCHAR,
+    linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- research
 CREATE TABLE research.researcher (
