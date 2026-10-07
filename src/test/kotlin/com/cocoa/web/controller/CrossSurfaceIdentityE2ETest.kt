@@ -69,6 +69,9 @@ class CrossSurfaceIdentityE2ETest {
 
     private fun stub(user: User.Entity) {
         whenever(userRepository.fetchUserById(user.userId)).thenReturn(user)
+        // F4 (#125): mintToken now requires the user to have a linked LINE
+        // identity; these farmers are linked.
+        whenever(userRepository.hasLinkedLineIdentity(user.userId)).thenReturn(true)
         whenever(userRepository.fetchUser(user.username)).thenReturn(user)
         whenever(userService.getUserDetail(user.userId)).thenReturn(
             User.Detail(
