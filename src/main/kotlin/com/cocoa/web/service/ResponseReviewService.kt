@@ -73,19 +73,28 @@ class ResponseReviewService(
             "Fields of type ${question.inputType} cannot be corrected here"
         }
 
+        // The audit row is written inside the answer's own transaction, so
+        // the correction and its record commit together or not at all
+        // (docs-and-plan#225).
         val correction =
-            repository.updateAnswerField(taskId, responseId, fieldName) { existing ->
-                AnswerCoercion.coerce(question.inputType, request.value, existing)
-            } ?: throw EntityNotFoundException("Response not found")
+            repository.updateAnswerField(
+                taskId,
+                responseId,
+                fieldName,
+                newValueFor = { existing -> AnswerCoercion.coerce(question.inputType, request.value, existing) },
+                afterUpdate = { tx, applied ->
+                    correctionLog.record(
+                        tx = tx,
+                        responseId = responseId,
+                        fieldName = fieldName,
+                        oldValue = AnswerCoercion.display(applied.oldValue),
+                        newValue = AnswerCoercion.display(applied.newValue),
+                        correctedBy = correctedBy,
+                        reason = request.reason?.takeIf { it.isNotBlank() },
+                    )
+                },
+            ) ?: throw EntityNotFoundException("Response not found")
 
-        correctionLog.record(
-            responseId = responseId,
-            fieldName = fieldName,
-            oldValue = AnswerCoercion.display(correction.oldValue),
-            newValue = AnswerCoercion.display(correction.newValue),
-            correctedBy = correctedBy,
-            reason = request.reason?.takeIf { it.isNotBlank() },
-        )
         logger.info(
             "response field corrected response_id={} task_id={} field={} corrected_by={}",
             responseId,

@@ -174,11 +174,17 @@ class ResponseReviewRepository(
     // the same response can't overwrite each other with a stale copy of the
     // JSON. Returns null when the response doesn't exist under this task.
     // Every other key of the answer is left exactly as it was.
+    //
+    // afterUpdate runs inside the same transaction, after the UPDATE, with
+    // that transaction's DSLContext. It is where the caller writes the audit
+    // row (docs-and-plan#225): if it throws, the UPDATE is rolled back too,
+    // so a correction can never land without its record.
     fun updateAnswerField(
         taskId: UUID,
         responseId: UUID,
         fieldName: String,
         newValueFor: (existing: JsonNode?) -> JsonNode,
+        afterUpdate: (tx: DSLContext, correction: Correction) -> Unit,
     ): Correction? {
         return dsl.transactionResult { config ->
             val tx = DSL.using(config)
@@ -206,7 +212,7 @@ class ResponseReviewRepository(
                 .where(RESPONSE.RESPONSE_ID.eq(responseId))
                 .execute()
 
-            Correction(oldValue, newValue)
+            Correction(oldValue, newValue).also { afterUpdate(tx, it) }
         }
     }
 }

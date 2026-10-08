@@ -19,7 +19,12 @@ import java.util.UUID
 class ResponseCorrectionLogRepository(
     dsl: DSLContext,
 ) : BaseRepository(dsl) {
+    // `tx` is the transaction that just changed the answer
+    // (ResponseReviewRepository.updateAnswerField's afterUpdate), so the
+    // correction and its audit row commit or roll back together
+    // (docs-and-plan#225). Never written through this repository's own dsl.
     fun record(
+        tx: DSLContext,
         responseId: UUID,
         fieldName: String,
         oldValue: String?,
@@ -27,7 +32,7 @@ class ResponseCorrectionLogRepository(
         correctedBy: UUID,
         reason: String?,
     ) {
-        dsl.insertInto(DSL.table(DSL.name("form", "response_correction_log")))
+        tx.insertInto(DSL.table(DSL.name("form", "response_correction_log")))
             .columns(
                 DSL.field(DSL.name("response_id"), UUID::class.java),
                 DSL.field(DSL.name("field_name"), String::class.java),
