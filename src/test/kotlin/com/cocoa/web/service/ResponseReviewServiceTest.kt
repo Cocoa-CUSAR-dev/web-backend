@@ -3,6 +3,7 @@ package com.cocoa.web.service
 import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.ResponseReview
+import com.cocoa.web.repository.ResponseCorrectionLogRepository
 import com.cocoa.web.repository.ResponseReviewRepository
 import com.cocoa.web.repository.ResponseReviewRepository.QuestionMeta
 import com.cocoa.web.repository.ResponseReviewRepository.SubmissionRow
@@ -26,7 +27,8 @@ import java.util.UUID
 
 class ResponseReviewServiceTest {
     private val repository: ResponseReviewRepository = mock()
-    private val service = ResponseReviewService(repository)
+    private val correctionLog: ResponseCorrectionLogRepository = mock()
+    private val service = ResponseReviewService(repository, correctionLog)
 
     private val taskId = UUID.randomUUID()
     private val responseId = UUID.randomUUID()
@@ -139,7 +141,8 @@ class ResponseReviewServiceTest {
 
 class ResponseReviewServiceCorrectionTest {
     private val repository: ResponseReviewRepository = mock()
-    private val service = ResponseReviewService(repository)
+    private val correctionLog: ResponseCorrectionLogRepository = mock()
+    private val service = ResponseReviewService(repository, correctionLog)
 
     private val taskId = UUID.randomUUID()
     private val responseId = UUID.randomUUID()
@@ -173,6 +176,29 @@ class ResponseReviewServiceCorrectionTest {
         assertEquals("7", field.value)
         assertEquals("llm_extracted", field.source)
         assertTrue(field.editable)
+    }
+
+    // US2-8 #173: every applied correction lands in the audit trail with the
+    // before/after values, who made it and why.
+    @Test
+    fun `a valid correction is recorded in the audit log`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        storedValueIs(IntNode.valueOf(5))
+        whenever(repository.fetchFieldSources(listOf(responseId))).thenReturn(emptyMap())
+
+        service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7", "typo"), reviewer)
+
+        verify(correctionLog).record(responseId, "fan_count", "5", "7", reviewer, "typo")
+    }
+
+    @Test
+    fun `nothing is recorded in the audit log when the correction is rejected`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.correctField(taskId, responseId, "farm_id", ResponseReview.Request.Correct("abc"), reviewer)
+        }
+        verify(correctionLog, never()).record(any(), any(), any(), any(), any(), any())
     }
 
     @Test

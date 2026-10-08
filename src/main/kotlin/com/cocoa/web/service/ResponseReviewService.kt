@@ -4,6 +4,7 @@ import com.cocoa.web.base.BaseService
 import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.ResponseReview
+import com.cocoa.web.repository.ResponseCorrectionLogRepository
 import com.cocoa.web.repository.ResponseReviewRepository
 import com.fasterxml.jackson.databind.JsonNode
 import org.slf4j.LoggerFactory
@@ -15,6 +16,7 @@ import java.util.UUID
 @Service
 class ResponseReviewService(
     private val repository: ResponseReviewRepository,
+    private val correctionLog: ResponseCorrectionLogRepository,
 ) : BaseService() {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -54,8 +56,9 @@ class ResponseReviewService(
     // ...) are NOT touched here, so a corrected value can disagree with them
     // until that propagation is built.
     //
-    // The log line is the stopgap record of who changed what, so nothing is
-    // overwritten silently; the persistent audit trail is docs-and-plan#173.
+    // Every correction is appended to the audit trail (docs-and-plan#173) so
+    // nothing is overwritten silently. The old/new values live in that table,
+    // not in the application log, so log lines don't carry answer data.
     fun correctField(
         taskId: UUID,
         responseId: UUID,
@@ -75,15 +78,20 @@ class ResponseReviewService(
                 AnswerCoercion.coerce(question.inputType, request.value, existing)
             } ?: throw EntityNotFoundException("Response not found")
 
+        correctionLog.record(
+            responseId = responseId,
+            fieldName = fieldName,
+            oldValue = AnswerCoercion.display(correction.oldValue),
+            newValue = AnswerCoercion.display(correction.newValue),
+            correctedBy = correctedBy,
+            reason = request.reason?.takeIf { it.isNotBlank() },
+        )
         logger.info(
-            "response field corrected response_id={} task_id={} field={} old={} new={} corrected_by={} reason={}",
+            "response field corrected response_id={} task_id={} field={} corrected_by={}",
             responseId,
             taskId,
             fieldName,
-            AnswerCoercion.display(correction.oldValue),
-            AnswerCoercion.display(correction.newValue),
             correctedBy,
-            request.reason?.takeIf { it.isNotBlank() },
         )
 
         val source = repository.fetchFieldSources(listOf(responseId))[responseId]?.get(fieldName)
