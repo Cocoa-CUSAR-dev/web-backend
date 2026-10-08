@@ -42,6 +42,13 @@ CREATE TABLE auth.role_permission (
     role_id UUID NOT NULL,
     permission_id UUID NOT NULL
 );
+-- US3-2 #125 (F3): jOOQ needs auth.sso_used_token so SsoUsedTokenRepository
+-- (single-use SSO tokens) compiles. Mirrors database migration V27.
+CREATE TABLE auth.sso_used_token (
+    jti UUID PRIMARY KEY,
+    used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL
+);
 
 -- research
 CREATE TABLE research.researcher (
