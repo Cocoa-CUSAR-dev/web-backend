@@ -3,6 +3,7 @@ package com.cocoa.web.config
 import com.cocoa.web.security.JwtAuthenticationFilter
 import com.cocoa.web.security.ServiceKeyFilter
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -24,6 +25,8 @@ class SecurityConfig(
     @Value("\${cors.origins:default}") val allowedOrigins: List<String>,
     private val authenticationProvider: AuthenticationProvider,
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     @Bean
     fun securityFilterChain(
         http: HttpSecurity,
@@ -68,10 +71,22 @@ class SecurityConfig(
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
+        // US3-2 #125 (F8): credentials are allowed, so methods and headers are an
+        // explicit allow-list rather than "*". All browser traffic reaches this
+        // backend through the web-app BFF (server-to-server, no CORS), so this
+        // doesn't affect any real cross-origin call -- it just removes a risky
+        // wildcard + credentials combination.
+        if (allowedOrigins == listOf("default")) {
+            logger.warn(
+                "cors.origins is not configured (fell back to \"default\"); set CORS_ORIGINS " +
+                    "to the web app's real origin(s) in each deployed environment",
+            )
+        }
+
         val configuration = CorsConfiguration()
         configuration.allowedOrigins = allowedOrigins
-        configuration.allowedMethods = listOf("*")
-        configuration.allowedHeaders = listOf("*")
+        configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        configuration.allowedHeaders = listOf("Content-Type", "Authorization", "X-Service-Key")
         configuration.allowCredentials = true
 
         val source = UrlBasedCorsConfigurationSource()
