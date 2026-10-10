@@ -3,12 +3,14 @@ package com.cocoa.web.service
 import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.ResponseReview
+import com.cocoa.web.repository.ResponseCorrectionLogRepository
 import com.cocoa.web.repository.ResponseReviewRepository
 import com.cocoa.web.repository.ResponseReviewRepository.QuestionMeta
 import com.cocoa.web.repository.ResponseReviewRepository.SubmissionRow
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.IntNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
+import org.jooq.DSLContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -26,7 +30,8 @@ import java.util.UUID
 
 class ResponseReviewServiceTest {
     private val repository: ResponseReviewRepository = mock()
-    private val service = ResponseReviewService(repository)
+    private val correctionLog: ResponseCorrectionLogRepository = mock()
+    private val service = ResponseReviewService(repository, correctionLog)
 
     private val taskId = UUID.randomUUID()
     private val responseId = UUID.randomUUID()
@@ -139,7 +144,8 @@ class ResponseReviewServiceTest {
 
 class ResponseReviewServiceCorrectionTest {
     private val repository: ResponseReviewRepository = mock()
-    private val service = ResponseReviewService(repository)
+    private val correctionLog: ResponseCorrectionLogRepository = mock()
+    private val service = ResponseReviewService(repository, correctionLog)
 
     private val taskId = UUID.randomUUID()
     private val responseId = UUID.randomUUID()
@@ -151,12 +157,17 @@ class ResponseReviewServiceCorrectionTest {
             QuestionMeta("farm_id", "Farm", "OPTION"),
         )
 
+    // The transaction the real repository would hand to afterUpdate.
+    private val tx: DSLContext = mock()
+
     // Stands in for the real locked read-modify-write: hands the stored value
-    // to the lambda the service passed in and reports what came back.
+    // to the lambda the service passed in, then runs afterUpdate inside "the
+    // transaction" exactly as the repository does, and reports what came back.
     private fun storedValueIs(existing: JsonNode?) {
-        whenever(repository.updateAnswerField(eq(taskId), eq(responseId), eq("fan_count"), any())).thenAnswer { call ->
+        whenever(repository.updateAnswerField(eq(taskId), eq(responseId), eq("fan_count"), any(), any())).thenAnswer { call ->
             val newValueFor = call.getArgument<(JsonNode?) -> JsonNode>(3)
-            ResponseReviewRepository.Correction(existing, newValueFor(existing))
+            val afterUpdate = call.getArgument<(DSLContext, ResponseReviewRepository.Correction) -> Unit>(4)
+            ResponseReviewRepository.Correction(existing, newValueFor(existing)).also { afterUpdate(tx, it) }
         }
     }
 
@@ -175,6 +186,47 @@ class ResponseReviewServiceCorrectionTest {
         assertTrue(field.editable)
     }
 
+    // US2-8 #173: every applied correction lands in the audit trail with the
+    // before/after values, who made it and why.
+    @Test
+    fun `a valid correction is recorded in the audit log`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        storedValueIs(IntNode.valueOf(5))
+        whenever(repository.fetchFieldSources(listOf(responseId))).thenReturn(emptyMap())
+
+        service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7", "typo"), reviewer)
+
+        verify(correctionLog).record(tx, responseId, "fan_count", "5", "7", reviewer, "typo")
+    }
+
+    // docs-and-plan#225: the audit row is written through the answer's own
+    // transaction, so a failed insert fails the whole correction (and the
+    // repository's transactionResult rolls the UPDATE back) instead of
+    // leaving a changed answer with no record of the change.
+    @Test
+    fun `a failed audit write fails the correction instead of being skipped`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+        storedValueIs(IntNode.valueOf(5))
+        doThrow(IllegalStateException("insert failed"))
+            .whenever(correctionLog)
+            .record(any(), any(), any(), anyOrNull(), anyOrNull(), any(), anyOrNull())
+
+        assertThrows(IllegalStateException::class.java) {
+            service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7"), reviewer)
+        }
+        verify(repository, never()).fetchFieldSources(any())
+    }
+
+    @Test
+    fun `nothing is recorded in the audit log when the correction is rejected`() {
+        whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.correctField(taskId, responseId, "farm_id", ResponseReview.Request.Correct("abc"), reviewer)
+        }
+        verify(correctionLog, never()).record(any(), any(), any(), anyOrNull(), anyOrNull(), any(), anyOrNull())
+    }
+
     @Test
     fun `an unknown field is rejected before anything is written`() {
         whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
@@ -182,7 +234,7 @@ class ResponseReviewServiceCorrectionTest {
         assertThrows(IllegalArgumentException::class.java) {
             service.correctField(taskId, responseId, "nope", ResponseReview.Request.Correct("7"), reviewer)
         }
-        verify(repository, never()).updateAnswerField(any(), any(), any(), any())
+        verify(repository, never()).updateAnswerField(any(), any(), any(), any(), any())
     }
 
     @Test
@@ -192,7 +244,7 @@ class ResponseReviewServiceCorrectionTest {
         assertThrows(IllegalArgumentException::class.java) {
             service.correctField(taskId, responseId, "farm_id", ResponseReview.Request.Correct("abc"), reviewer)
         }
-        verify(repository, never()).updateAnswerField(any(), any(), any(), any())
+        verify(repository, never()).updateAnswerField(any(), any(), any(), any(), any())
     }
 
     @Test
@@ -208,7 +260,7 @@ class ResponseReviewServiceCorrectionTest {
     @Test
     fun `a response that does not exist under the task is a not-found`() {
         whenever(repository.fetchQuestions(taskId)).thenReturn(questions)
-        whenever(repository.updateAnswerField(any(), any(), any(), any())).thenReturn(null)
+        whenever(repository.updateAnswerField(any(), any(), any(), any(), any())).thenReturn(null)
 
         assertThrows(EntityNotFoundException::class.java) {
             service.correctField(taskId, responseId, "fan_count", ResponseReview.Request.Correct("7"), reviewer)

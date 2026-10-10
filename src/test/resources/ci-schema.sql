@@ -182,6 +182,17 @@ CREATE TABLE form.response (
     answer JSONB,
     status VARCHAR(50)
 );
+-- US2-8 #173: audit trail of researcher field corrections (migration V29).
+CREATE TABLE form.response_correction_log (
+    correction_log_id UUID PRIMARY KEY,
+    response_id UUID NOT NULL,
+    field_name VARCHAR NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    corrected_by UUID NOT NULL,
+    reason TEXT,
+    corrected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE form.diary_entry (
     diary_entry_id UUID PRIMARY KEY,
     user_id UUID NOT NULL,
