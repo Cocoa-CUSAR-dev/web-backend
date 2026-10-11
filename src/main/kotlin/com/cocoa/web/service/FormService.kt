@@ -114,6 +114,7 @@ class FormService(
                 handlers = entries,
                 dependencies = handlerRegistryRepository.dependencies(),
                 registrationTables = HandlerCatalogRepository.REGISTRATION_TABLES,
+                fieldLabels = stats.fieldLabels,
             )
         catalogCache = Instant.now() to catalog
         return catalog

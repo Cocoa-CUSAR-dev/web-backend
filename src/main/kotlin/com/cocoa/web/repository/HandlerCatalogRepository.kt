@@ -126,6 +126,8 @@ class HandlerCatalogRepository(
         val responseCounts: Map<String, Int>,
         // handler -> field_name -> number of that handler's forms asking it
         val fieldUsage: Map<String, Map<String, Int>>,
+        // field_name -> the label researchers most often give it
+        val fieldLabels: Map<String, String>,
     )
 
     fun fetchCatalogStats(): CatalogStats {
@@ -186,7 +188,26 @@ class HandlerCatalogRepository(
             }.groupBy({ it.first }, { it.second to it.third })
                 .mapValues { (_, pairs) -> pairs.toMap() }
 
-        return CatalogStats(formSummaries, responseCounts, fieldUsage)
+        // The Data Map shows Thai names, not column names: the most common
+        // label researchers have given each field_name across all active
+        // questions (doc §3.4). Ties go to the alphabetically first label so
+        // the page doesn't flicker between two equally common ones.
+        val fieldLabels =
+            dsl.resultQuery(
+                """
+                SELECT DISTINCT ON (field_name) field_name, label
+                FROM (
+                    SELECT q.field_name, btrim(q.label) AS label, count(*) AS uses
+                    FROM form.question q
+                    WHERE q.field_name IS NOT NULL AND btrim(q.label) <> '' AND COALESCE(q.is_active, true)
+                    GROUP BY q.field_name, btrim(q.label)
+                ) labels
+                ORDER BY field_name, uses DESC, label
+                """.trimIndent(),
+            ).fetch { it.get(0, String::class.java) to it.get(1, String::class.java) }
+                .toMap()
+
+        return CatalogStats(formSummaries, responseCounts, fieldUsage, fieldLabels)
     }
 
     companion object {

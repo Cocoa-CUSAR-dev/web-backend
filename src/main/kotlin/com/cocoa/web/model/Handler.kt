@@ -57,6 +57,9 @@ object Handler {
             val handlers: List<Entry>,
             val dependencies: List<Dependency>,
             val registrationTables: List<RegistrationTable>,
+            // field_name -> the label researchers most often give that
+            // field, so pages can say "ฟาร์ม" instead of "farm_id".
+            val fieldLabels: Map<String, String>,
         )
 
         data class Entry(
