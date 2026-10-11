@@ -65,6 +65,20 @@ class FormController(
         return handlers.toResponseEntity(HttpStatus.OK)
     }
 
+    // Declared before /handlers/{handler}/fields only for readability --
+    // Spring matches "/handlers/catalog" as a literal path either way.
+    @PreAuthorize("hasAuthority('read:form:all')")
+    @Operation(
+        summary = "Every handler, its fields, dependencies and usage counts",
+        description = "Feeds the researcher Data Map page. Read-only; cached for 5 minutes.",
+    )
+    @GetMapping("/handlers/catalog")
+    fun getHandlerCatalog(): ResponseEntity<ApiResponse<Handler.Catalog.Response>> {
+        val catalog = formService.getHandlerCatalog()
+
+        return catalog.toResponseEntity(HttpStatus.OK)
+    }
+
     @PreAuthorize("hasAuthority('create:form:all')")
     @Operation(summary = "List a handler's destination table columns, for the form builder's field_name dropdown")
     @GetMapping("/handlers/{handler}/fields")

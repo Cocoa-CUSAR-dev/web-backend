@@ -12,6 +12,7 @@ import com.cocoa.web.model.Section
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -19,7 +20,10 @@ import java.util.concurrent.ConcurrentHashMap
 @Repository
 class FormRepository(
     dsl: DSLContext,
+    private val handlerRegistryRepository: HandlerRegistryRepository,
 ) : BaseRepository(dsl) {
+    private val logger = LoggerFactory.getLogger(this::class.java)
+
     fun findByFormId(formId: UUID): Form.Entity? {
         val formRecord =
             dsl.selectFrom(TASK_FORM)
@@ -303,9 +307,20 @@ class FormRepository(
                 .map { it.get(QUESTION.FIELD_NAME) }
                 .distinct()
 
+        // US2-13: one field whose choices can't be loaded (an OPTION question
+        // on a field with no ref table -- the builder used to allow it) used to
+        // throw straight out of here, so the WHOLE form failed to load for the
+        // app, the chatbot and LIFF alike. Isolated per field now: that one
+        // question gets no choices and an error in the log, every other
+        // question loads normally.
         val choicesMap =
             optionFieldNames.associateWith { fieldName ->
-                fetchRefChoices(fieldName)
+                try {
+                    fetchRefChoices(fieldName)
+                } catch (e: Exception) {
+                    logger.error("could not load choices for OPTION field '$fieldName' -- returning none", e)
+                    emptyList()
+                }
             }
 
         return records
@@ -371,6 +386,31 @@ class FormRepository(
 
         val idCol = DSL.field(DSL.name("ref", table, idField))
         val nameCol = DSL.field(DSL.name("ref", table, nameField))
+
+        // US2-13: a dependent field (form.field_dependency, e.g. plot_id ->
+        // farm_id) also returns each choice's parent key, so every client can
+        // filter locally by the answer to the parent question. The parent key
+        // comes from the dependency's link_table, joined on the child id --
+        // NOT from the ref table: ref.plot_constant has no farm_id of its own
+        // (it's a synced copy of agriculture.plot, sharing plot_id). LEFT JOIN
+        // so a choice with no link row still appears, just unfilterable.
+        val dependency = handlerRegistryRepository.dependencyFor(fieldName)
+        if (dependency != null) {
+            val (linkSchema, linkTable) = dependency.linkTable.split(".", limit = 2)
+            val parentCol = DSL.field(DSL.name("link", dependency.linkColumn))
+            return dsl.select(idCol, nameCol, parentCol)
+                .from(DSL.table(DSL.name("ref", table)))
+                .leftJoin(DSL.table(DSL.name(linkSchema, linkTable)).`as`("link"))
+                .on(DSL.field(DSL.name("link", dependency.childField)).eq(idCol))
+                .fetch { record ->
+                    Question.Choice(
+                        id = record.get(idCol).toString(),
+                        name = record.get(nameCol).toString(),
+                        parentId = record.get(parentCol)?.toString(),
+                    )
+                }
+        }
+
         return dsl.select(idCol, nameCol)
             .from(DSL.table(DSL.name("ref", table)))
             .fetch { record -> Question.Choice(id = record.get(idCol).toString(), name = record.get(nameCol).toString()) }
@@ -474,6 +514,7 @@ class FormRepository(
                     null
                 },
             validationRule = this.get(FIELD_VALIDATION_RULE.VALIDATION_RULE),
+            dependsOn = fieldName?.let { handlerRegistryRepository.dependencyFor(it)?.parentField },
         )
     }
 
