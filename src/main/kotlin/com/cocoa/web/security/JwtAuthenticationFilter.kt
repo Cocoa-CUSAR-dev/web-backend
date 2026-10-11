@@ -44,6 +44,15 @@ class JwtAuthenticationFilter(
             return
         }
 
+        // US3-2 #125 (F1): an SSO mint token is redeemable only at
+        // /auth/sso/exchange, never a request credential on its own. Refuse it
+        // here so a leaked/forwarded deep-link token can't authorize API calls.
+        if (jwtTokenService.getTokenType(jwtToken) == JwtTokenService.SSO_TOKEN_TYPE) {
+            if (fromCookie) response.addCookie(cookieService.removeCookie(jwtProperties.name))
+            filterChain.doFilter(request, response)
+            return
+        }
+
         val username = jwtTokenService.getUsername(jwtToken)
         val userDetails =
             username?.let {

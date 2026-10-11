@@ -1,10 +1,12 @@
 package com.cocoa.web
 
+import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Analytics
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.FormResponse
 import com.cocoa.web.model.Question
 import com.cocoa.web.model.Researcher
+import com.cocoa.web.model.ResponseReview
 import com.cocoa.web.model.Section
 import com.cocoa.web.model.Task
 import com.cocoa.web.model.User
@@ -15,6 +17,7 @@ import com.cocoa.web.repository.HarvestRepository
 import com.cocoa.web.repository.LocationRepository
 import com.cocoa.web.repository.QuestionRepository
 import com.cocoa.web.repository.ResearcherRepository
+import com.cocoa.web.repository.ResponseReviewRepository
 import com.cocoa.web.repository.SectionRepository
 import com.cocoa.web.repository.TaskRepository
 import com.cocoa.web.repository.UserRepository
@@ -27,6 +30,7 @@ import com.cocoa.web.service.FormService
 import com.cocoa.web.service.HarvestAnalyticsService
 import com.cocoa.web.service.JwtTokenService
 import com.cocoa.web.service.ResearcherService
+import com.cocoa.web.service.ResponseReviewService
 import com.cocoa.web.service.SpatialHarvestAnalyticsService
 import com.cocoa.web.service.TaskService
 import com.cocoa.web.service.UserAnalyticsService
@@ -121,6 +125,8 @@ class WebApplicationTests {
 
     @MockBean lateinit var sectionRepository: SectionRepository
 
+    @MockBean lateinit var responseReviewRepository: ResponseReviewRepository
+
     // ---- Services (because AuthenticationController depends on most of these)
 
     @MockBean lateinit var authenticationService: AuthenticationService
@@ -132,6 +138,8 @@ class WebApplicationTests {
     @MockBean lateinit var formService: FormService
 
     @MockBean lateinit var formResponseService: FormResponseService
+
+    @MockBean lateinit var responseReviewService: ResponseReviewService
 
     @MockBean lateinit var taskService: TaskService
 
@@ -501,6 +509,107 @@ class WebApplicationTests {
         mockMvc.perform(get("/tasks/{taskId}/responses/{responseId}", taskId, responseId))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.value.responseId").exists())
+    }
+
+    // ----------------------------------------------------------------------
+    // ResponseReviewController (US2-8)
+    // ----------------------------------------------------------------------
+
+    @Test
+    @WithMockUser(authorities = ["read:response:all"])
+    fun responseReview_get_returns200() {
+        val taskId = UUID.randomUUID()
+        whenever(responseReviewService.getReview(any(), any(), any())).thenReturn(
+            listOf(
+                ResponseReview.Submission(
+                    responseId = UUID.randomUUID(),
+                    submitter = "Somchai Jaidee",
+                    submittedAt = LocalDateTime.now(),
+                    fields =
+                        listOf(
+                            ResponseReview.Field(
+                                fieldName = "fan_count",
+                                label = "Number of fans",
+                                inputType = "INT",
+                                value = "5",
+                                source = "llm_extracted",
+                                editable = true,
+                            ),
+                        ),
+                ),
+            ),
+        )
+
+        mockMvc.perform(get("/tasks/{taskId}/review", taskId).param("aiOnly", "true"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value[0].submitter").value("Somchai Jaidee"))
+            .andExpect(jsonPath("$.value[0].fields[0].source").value("llm_extracted"))
+            .andExpect(jsonPath("$.value[0].fields[0].editable").value(true))
+    }
+
+    @Test
+    fun responseReview_get_withoutLogin_returns401() {
+        mockMvc.perform(get("/tasks/{taskId}/review", UUID.randomUUID()))
+            .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    @WithMockUser(authorities = ["read:task:all"])
+    fun responseReview_get_withoutReadResponsePermission_returns403() {
+        mockMvc.perform(get("/tasks/{taskId}/review", UUID.randomUUID()))
+            .andExpect(status().isForbidden)
+    }
+
+    private fun correctRequest(value: String) =
+        patch("/tasks/{taskId}/review/{responseId}/fields/{fieldName}", UUID.randomUUID(), UUID.randomUUID(), "fan_count")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(mapOf("value" to value, "reason" to "typo")))
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_returns200WithTheUpdatedField() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any())).thenReturn(
+            ResponseReview.Field(
+                fieldName = "fan_count",
+                label = "Number of fans",
+                inputType = "INT",
+                value = "7",
+                source = "llm_extracted",
+                editable = true,
+            ),
+        )
+
+        mockMvc.perform(correctRequest("7"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value.value").value("7"))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_withAnInvalidValue_returns400() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any()))
+            .thenThrow(IllegalArgumentException("Value must be a whole number"))
+
+        mockMvc.perform(correctRequest("abc"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("Value must be a whole number"))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["update:response:all"])
+    fun responseReview_correct_forAMissingResponse_returns404() {
+        whenever(responseReviewService.correctField(any(), any(), any(), any(), any()))
+            .thenThrow(EntityNotFoundException("Response not found"))
+
+        mockMvc.perform(correctRequest("7")).andExpect(status().isNotFound)
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:all"])
+    fun responseReview_correct_withOnlyReadPermission_returns403AndWritesNothing() {
+        mockMvc.perform(correctRequest("7")).andExpect(status().isForbidden)
+
+        verify(responseReviewService, never()).correctField(any(), any(), any(), any(), any())
     }
 
     // ----------------------------------------------------------------------

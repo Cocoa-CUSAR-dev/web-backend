@@ -42,6 +42,13 @@ CREATE TABLE auth.role_permission (
     role_id UUID NOT NULL,
     permission_id UUID NOT NULL
 );
+-- US3-2 #125 (F3): jOOQ needs auth.sso_used_token so SsoUsedTokenRepository
+-- (single-use SSO tokens) compiles. Mirrors database migration V27.
+CREATE TABLE auth.sso_used_token (
+    jti UUID PRIMARY KEY,
+    used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL
+);
 
 -- research
 CREATE TABLE research.researcher (
@@ -174,6 +181,17 @@ CREATE TABLE form.response (
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     answer JSONB,
     status VARCHAR(50)
+);
+-- US2-8 #173: audit trail of researcher field corrections (migration V29).
+CREATE TABLE form.response_correction_log (
+    correction_log_id UUID PRIMARY KEY,
+    response_id UUID NOT NULL,
+    field_name VARCHAR NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    corrected_by UUID NOT NULL,
+    reason TEXT,
+    corrected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE form.diary_entry (
     diary_entry_id UUID PRIMARY KEY,

@@ -36,6 +36,11 @@ class CookieService(
         cookiePath: String = "/",
         // 24 hours
         cookieMaxAge: Int = 24 * 60 * 60,
+        // US3-2 #125 (F5): CSRF is disabled globally, so the session cookie must
+        // carry SameSite itself. Lax lets normal top-level navigation (e.g. the
+        // SSO deep link opening the web app) still send the cookie, while
+        // blocking it on cross-site subrequests that drive CSRF.
+        sameSite: String = "Lax",
     ): Cookie {
         val cookie =
             Cookie(cookieName, cookieValue).apply {
@@ -43,6 +48,7 @@ class CookieService(
                 secure = cookieSecure
                 path = cookiePath
                 maxAge = cookieMaxAge
+                setAttribute("SameSite", sameSite)
             }
 
         return cookie

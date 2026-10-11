@@ -2,12 +2,14 @@ package com.cocoa.web.controller
 
 import com.cocoa.web.config.JwtProperties
 import com.cocoa.web.model.User
+import com.cocoa.web.repository.SsoUsedTokenRepository
 import com.cocoa.web.repository.UserRepository
 import com.cocoa.web.service.UserService
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -55,6 +57,11 @@ class CrossSurfaceIdentityE2ETest {
     @MockBean
     lateinit var userService: UserService
 
+    // F3 (#125) added single-use enforcement; this cross-surface test mints a
+    // fresh token per hop, so every redemption is a first use -> true.
+    @MockBean
+    lateinit var ssoUsedTokenRepository: SsoUsedTokenRepository
+
     private fun farmer(username: String) =
         User.Entity(
             userId = UUID.randomUUID(),
@@ -68,6 +75,7 @@ class CrossSurfaceIdentityE2ETest {
         )
 
     private fun stub(user: User.Entity) {
+        whenever(ssoUsedTokenRepository.markUsedIfFirstTime(any(), any())).thenReturn(true)
         whenever(userRepository.fetchUserById(user.userId)).thenReturn(user)
         whenever(userRepository.fetchUser(user.username)).thenReturn(user)
         whenever(userService.getUserDetail(user.userId)).thenReturn(
