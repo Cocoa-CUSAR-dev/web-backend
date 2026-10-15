@@ -5,6 +5,7 @@ import com.cocoa.web.model.Analytics
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.FormResponse
 import com.cocoa.web.model.Question
+import com.cocoa.web.model.Recurrence
 import com.cocoa.web.model.Researcher
 import com.cocoa.web.model.ResponseReview
 import com.cocoa.web.model.Section
@@ -16,6 +17,7 @@ import com.cocoa.web.repository.FormResponseRepository
 import com.cocoa.web.repository.HarvestRepository
 import com.cocoa.web.repository.LocationRepository
 import com.cocoa.web.repository.QuestionRepository
+import com.cocoa.web.repository.RecurrenceRepository
 import com.cocoa.web.repository.ResearcherRepository
 import com.cocoa.web.repository.ResponseReviewRepository
 import com.cocoa.web.repository.SectionRepository
@@ -29,6 +31,7 @@ import com.cocoa.web.service.FormResponseService
 import com.cocoa.web.service.FormService
 import com.cocoa.web.service.HarvestAnalyticsService
 import com.cocoa.web.service.JwtTokenService
+import com.cocoa.web.service.RecurrenceService
 import com.cocoa.web.service.ResearcherService
 import com.cocoa.web.service.ResponseReviewService
 import com.cocoa.web.service.SpatialHarvestAnalyticsService
@@ -38,8 +41,10 @@ import com.cocoa.web.service.UserService
 import com.cocoa.web.service.XlsxService
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -127,6 +132,8 @@ class WebApplicationTests {
 
     @MockBean lateinit var responseReviewRepository: ResponseReviewRepository
 
+    @MockBean lateinit var recurrenceRepository: RecurrenceRepository
+
     // ---- Services (because AuthenticationController depends on most of these)
 
     @MockBean lateinit var authenticationService: AuthenticationService
@@ -140,6 +147,8 @@ class WebApplicationTests {
     @MockBean lateinit var formResponseService: FormResponseService
 
     @MockBean lateinit var responseReviewService: ResponseReviewService
+
+    @MockBean lateinit var recurrenceService: RecurrenceService
 
     @MockBean lateinit var taskService: TaskService
 
@@ -903,6 +912,129 @@ class WebApplicationTests {
                 .content(body),
         )
             .andExpect(status().isCreated)
+    }
+
+    // ----------------------------------------------------------------------
+    // US4-4: recurring tasks
+    // ----------------------------------------------------------------------
+
+    // MockMvc leaves servletPath empty, and ServiceKeyFilter only guards paths whose
+    // servletPath starts with /service/ (as it is on a real server) -- without this
+    // the filter would be skipped and these tests would not be testing the key at all.
+    private fun runRecurrence() = post("/service/recurrence/run").servletPath("/service/recurrence/run")
+
+    @Test
+    fun recurrenceRun_withoutServiceKey_returns401AndRunsNothing() {
+        mockMvc.perform(runRecurrence())
+            .andExpect(status().isUnauthorized)
+
+        verify(recurrenceService, never()).generateDueRounds(any())
+    }
+
+    @Test
+    fun recurrenceRun_withAWrongServiceKey_returns401AndRunsNothing() {
+        mockMvc.perform(runRecurrence().header("X-Service-Key", "not-the-key"))
+            .andExpect(status().isUnauthorized)
+
+        verify(recurrenceService, never()).generateDueRounds(any())
+    }
+
+    @Test
+    fun recurrenceRun_withTheServiceKey_returns200WithWhatItDid() {
+        whenever(recurrenceService.generateDueRounds(any())).thenReturn(Recurrence.RunResult(2, 6, 1, 0, 0))
+
+        mockMvc.perform(runRecurrence().header("X-Service-Key", "test-service-key"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value.created").value(2))
+            .andExpect(jsonPath("$.value.alreadyExisted").value(6))
+            .andExpect(jsonPath("$.value.skippedClosed").value(1))
+            .andExpect(jsonPath("$.value.failed").value(0))
+    }
+
+    @Test
+    fun recurrenceRun_whenARoundFailed_returns500SoTheCronRunTurnsRed() {
+        whenever(recurrenceService.generateDueRounds(any())).thenReturn(Recurrence.RunResult(1, 0, 0, 0, 2))
+
+        mockMvc.perform(runRecurrence().header("X-Service-Key", "test-service-key"))
+            .andExpect(status().isInternalServerError)
+            .andExpect(jsonPath("$.value.failed").value(2))
+            .andExpect(jsonPath("$.value.created").value(1))
+    }
+
+    private fun createFormBody(extra: String): String =
+        """
+        {
+          "title": "Daily check",
+          "description": null,
+          "openAt": "2026-10-05T08:00:00",
+          "closeAt": "2026-10-05T17:00:00",
+          "handler": "farm_activity",
+          "sections": [{
+            "title": "Main", "description": null, "sortOrder": 1,
+            "questions": [{"label": "Note", "inputType": "VARCHAR", "fieldName": "note", "sortOrder": 1}]
+          }]$extra
+        }
+        """.trimIndent()
+
+    @Test
+    @WithMockPrincipal(authorities = ["create:form:all"])
+    fun createForm_withRecurrenceAndRecipients_passesThemToTheService() {
+        val roleId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        whenever(formService.createForm(any(), any())).thenReturn(
+            Form.Detail(UUID.randomUUID(), "Daily check", null, false, emptyList()),
+        )
+        val body =
+            createFormBody(
+                """,
+                  "recurrence": {"frequency": "WEEKLY", "weekdays": [1, 4], "untilDate": "2026-12-31"},
+                  "recipients": [{"type": "ROLE", "id": "$roleId"}, {"type": "USER", "id": "$userId"}]""",
+            )
+
+        mockMvc.perform(post("/forms").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isCreated)
+
+        val captor = argumentCaptor<Form.Request.Create>()
+        verify(formService).createForm(captor.capture(), any())
+        val sent = captor.firstValue
+        assertEquals(Recurrence.Frequency.WEEKLY, sent.recurrence?.frequency)
+        assertEquals(listOf(1, 4), sent.recurrence?.weekdays)
+        assertEquals(java.time.LocalDate.of(2026, 12, 31), sent.recurrence?.untilDate)
+        assertEquals(listOf(roleId, userId), sent.recipients.map { it.id })
+        assertEquals(listOf("ROLE", "USER"), sent.recipients.map { it.type.name })
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["create:form:all"])
+    fun createForm_withoutRecurrenceOrRecipients_stillWorksAsBefore() {
+        whenever(formService.createForm(any(), any())).thenReturn(
+            Form.Detail(UUID.randomUUID(), "One-off", null, false, emptyList()),
+        )
+
+        mockMvc.perform(post("/forms").contentType(MediaType.APPLICATION_JSON).content(createFormBody("")))
+            .andExpect(status().isCreated)
+
+        val captor = argumentCaptor<Form.Request.Create>()
+        verify(formService).createForm(captor.capture(), any())
+        assertEquals(null, captor.firstValue.recurrence)
+        assertEquals(emptyList<Any>(), captor.firstValue.recipients)
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["create:form:all"])
+    fun createForm_whenTheServiceRefusesTheRecurrence_returns400WithTheReason() {
+        whenever(formService.createForm(any(), any())).thenAnswer {
+            throw IllegalArgumentException("A weekly task needs at least one weekday")
+        }
+        val body =
+            createFormBody(
+                """,
+                  "recurrence": {"frequency": "WEEKLY", "weekdays": []}""",
+            )
+
+        mockMvc.perform(post("/forms").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value("A weekly task needs at least one weekday"))
     }
 
     // ----------------------------------------------------------------------
