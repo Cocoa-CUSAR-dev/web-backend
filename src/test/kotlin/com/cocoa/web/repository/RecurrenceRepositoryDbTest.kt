@@ -210,7 +210,8 @@ class RecurrenceRepositoryDbTest {
         val rules =
             listOf(
                 Reminder.Recipient(Reminder.RecipientType.ROLE, farmers),
-                Reminder.Recipient(Reminder.RecipientType.USER, a), // also named directly: still one assignment
+                // Also named directly, but still gets just one assignment.
+                Reminder.Recipient(Reminder.RecipientType.USER, a),
             )
 
         val assignees = recurrences.resolveUserIds(rules)
@@ -364,7 +365,8 @@ class RecurrenceRepositoryDbTest {
         // Same structure, brand-new rows.
         fun shape(formId: UUID) =
             dsl.fetch(
-                "select s.title as st, s.sort_order as so, q.label, q.input_type, q.field_name, q.is_mandatory, q.carry_forward, q.sort_order " +
+                "select s.title as st, s.sort_order as so, q.label, q.input_type, q.field_name, " +
+                    "q.is_mandatory, q.carry_forward, q.sort_order " +
                     "from form.section s join form.question q on q.section_id = s.section_id " +
                     "where s.form_id = ? order by s.sort_order, q.sort_order",
                 formId,
@@ -374,7 +376,8 @@ class RecurrenceRepositoryDbTest {
         assertEquals(
             0,
             count(
-                "select count(*) from form.question where section_id in (select section_id from form.section where form_id = '${newForm.formId}') " +
+                "select count(*) from form.question where section_id in " +
+                    "(select section_id from form.section where form_id = '${newForm.formId}') " +
                     "and question_id in (select question_id from form.question where section_id in " +
                     "(select section_id from form.section where form_id = '${oldForm.formId}'))",
             ),
@@ -385,7 +388,8 @@ class RecurrenceRepositoryDbTest {
             1,
             count(
                 "select count(*) from form.question_visibility v join form.question q on q.question_id = v.question_id " +
-                    "join form.section s on s.section_id = q.section_id where s.form_id = '${newForm.formId}' and q.field_name = 'pod_count' and v.role = 'farmer'",
+                    "join form.section s on s.section_id = q.section_id where s.form_id = '${newForm.formId}' " +
+                    "and q.field_name = 'pod_count' and v.role = 'farmer'",
             ),
         )
 
@@ -486,7 +490,8 @@ class RecurrenceRepositoryDbTest {
         )
         val recurrenceId = UUID.randomUUID()
         dsl.execute(
-            "insert into form.task_recurrence (recurrence_id, template_task_id, frequency, start_date, created_by) values (?, ?, 'DAILY', '2026-10-05', ?)",
+            "insert into form.task_recurrence (recurrence_id, template_task_id, frequency, start_date, created_by) " +
+                "values (?, ?, 'DAILY', '2026-10-05', ?)",
             recurrenceId,
             taskId,
             creator,
