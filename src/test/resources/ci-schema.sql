@@ -136,7 +136,48 @@ CREATE TABLE form.task (
     description TEXT,
     task_type VARCHAR(50),
     open_at TIMESTAMP,
-    close_at TIMESTAMP
+    close_at TIMESTAMP,
+    -- US4-4 #234 (migration V31): which recurrence a round belongs to, and the
+    -- day it is the round for. Both NULL on a plain one-off task.
+    recurrence_id UUID,
+    period_date DATE
+);
+-- US4-4 #234 (migration V31): how a template task repeats, who a task is aimed
+-- at, and who is assigned to it.
+CREATE TABLE form.task_recurrence (
+    recurrence_id UUID PRIMARY KEY,
+    template_task_id UUID NOT NULL,
+    frequency VARCHAR NOT NULL,
+    weekdays SMALLINT[],
+    start_date DATE NOT NULL,
+    until_date DATE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE form.task_recipient (
+    recipient_id UUID PRIMARY KEY,
+    task_id UUID NOT NULL,
+    recipient_type VARCHAR NOT NULL,
+    role_id UUID,
+    user_id UUID,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE form.assignment (
+    assignment_id UUID PRIMARY KEY,
+    task_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    status VARCHAR NOT NULL DEFAULT 'NOT_STARTED',
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP
+);
+-- Who may see a question (role and/or province); copied with the question
+-- when a recurring task's next round is created.
+CREATE TABLE form.question_visibility (
+    visibility_id UUID PRIMARY KEY,
+    question_id UUID NOT NULL,
+    role VARCHAR,
+    province_id UUID
 );
 CREATE TABLE form.task_form (
     form_id UUID PRIMARY KEY,

@@ -5,9 +5,11 @@ import com.cocoa.generated.form.Tables.QUESTION
 import com.cocoa.generated.form.Tables.SECTION
 import com.cocoa.generated.form.Tables.TASK
 import com.cocoa.generated.form.Tables.TASK_FORM
+import com.cocoa.generated.form.Tables.TASK_RECURRENCE
 import com.cocoa.web.base.BaseRepository
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Question
+import com.cocoa.web.model.Recurrence
 import com.cocoa.web.model.Section
 import org.jooq.DSLContext
 import org.jooq.Record
@@ -78,7 +80,11 @@ class FormRepository(
     // in one transaction, so a form with sections but no questions (or vice
     // versa) can never be left half-created by a failed request partway
     // through. See docs/bugs/dynamic-form-proposal.md, Part 2.
-    fun createForm(request: Form.Request.Create): UUID {
+    fun createForm(
+        request: Form.Request.Create,
+        createdBy: UUID,
+        assigneeIds: List<UUID> = emptyList(),
+    ): UUID {
         return dsl.transactionResult { config ->
             val transactionDsl = DSL.using(config)
 
@@ -128,6 +134,44 @@ class FormRepository(
                         .set(QUESTION.DEFAULT_VALUE, question.defaultValue)
                         .execute()
                 }
+            }
+
+            // US4-4: who the task is for. The rules are kept on the task and the
+            // people they name are assigned now -- same transaction, so a task
+            // is never visible to everyone for a moment before it is restricted.
+            if (request.recipients.isNotEmpty()) {
+                TaskAssignments.saveRecipients(transactionDsl, taskId, request.recipients)
+                TaskAssignments.assign(transactionDsl, taskId, assigneeIds)
+            }
+
+            // US4-4: this task is round #1 of a repeating task. The recurrence
+            // points at it as its template and it points back at the recurrence
+            // for its first day, which is what keeps the job from copying it twice.
+            request.recurrence?.let { recurrence ->
+                val startDate = request.openAt.toLocalDate()
+                val weekdays: Array<Short>? =
+                    if (recurrence.frequency == Recurrence.Frequency.WEEKLY) {
+                        recurrence.weekdays.orEmpty().distinct().sorted().map { it.toShort() }.toTypedArray()
+                    } else {
+                        null
+                    }
+                val recurrenceId =
+                    transactionDsl.insertInto(TASK_RECURRENCE)
+                        .set(TASK_RECURRENCE.TEMPLATE_TASK_ID, taskId)
+                        .set(TASK_RECURRENCE.FREQUENCY, recurrence.frequency.name)
+                        .set(TASK_RECURRENCE.WEEKDAYS, weekdays)
+                        .set(TASK_RECURRENCE.START_DATE, startDate)
+                        .set(TASK_RECURRENCE.UNTIL_DATE, recurrence.untilDate)
+                        .set(TASK_RECURRENCE.CREATED_BY, createdBy)
+                        .returning(TASK_RECURRENCE.RECURRENCE_ID)
+                        .fetchOne()?.get(TASK_RECURRENCE.RECURRENCE_ID)
+                        ?: throw IllegalStateException("Recurrence creation failed")
+
+                transactionDsl.update(TASK)
+                    .set(TASK.RECURRENCE_ID, recurrenceId)
+                    .set(TASK.PERIOD_DATE, startDate)
+                    .where(TASK.TASK_ID.eq(taskId))
+                    .execute()
             }
 
             return@transactionResult formId

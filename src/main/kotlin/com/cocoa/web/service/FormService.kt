@@ -6,9 +6,12 @@ import com.cocoa.web.exception.ChatbotUnavailableException
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.Handler
+import com.cocoa.web.model.Recurrence
+import com.cocoa.web.model.Reminder
 import com.cocoa.web.repository.FormRepository
 import com.cocoa.web.repository.HandlerCatalogRepository
 import com.cocoa.web.repository.QuestionRepository
+import com.cocoa.web.repository.RecurrenceRepository
 import com.cocoa.web.repository.SectionRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -21,6 +24,7 @@ class FormService(
     private val questionRepository: QuestionRepository,
     private val handlerCatalogRepository: HandlerCatalogRepository,
     private val chatbotClient: ChatbotClient,
+    private val recurrenceRepository: RecurrenceRepository,
 ) : BaseService() {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -80,7 +84,10 @@ class FormService(
             require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
         }
 
-        val formId = formRepository.createForm(request)
+        request.recurrence?.let { validateRecurrence(it, request) }
+        val assigneeIds = resolveAssignees(request.recipients)
+
+        val formId = formRepository.createForm(request, createdBy, assigneeIds)
 
         // Same permission as creating the form itself (create:form:all,
         // enforced at the controller) -- reminder settings are just part
@@ -106,6 +113,45 @@ class FormService(
 
         return formRepository.fetchForm(formId)
             ?: throw IllegalStateException("Form was created but could not be re-fetched")
+    }
+
+    // US4-4 (docs-and-plan#233). The task being created is round #1, so its own
+    // dates are what the later rounds are modelled on -- they have to make sense.
+    private fun validateRecurrence(
+        recurrence: Recurrence.Request.Create,
+        request: Form.Request.Create,
+    ) {
+        require(request.closeAt.isAfter(request.openAt)) {
+            "A repeating task must close after it opens"
+        }
+        if (recurrence.frequency == Recurrence.Frequency.WEEKLY) {
+            val weekdays = recurrence.weekdays.orEmpty()
+            require(weekdays.isNotEmpty()) { "A weekly task needs at least one weekday" }
+            require(weekdays.all { it in 1..7 }) {
+                "Weekdays must be numbers from 1 (Monday) to 7 (Sunday)"
+            }
+        }
+        recurrence.untilDate?.let {
+            require(!it.isBefore(request.openAt.toLocalDate())) {
+                "The end date must not be before the day the task first opens"
+            }
+        }
+    }
+
+    // Turns the chosen recipients into the people they name. No recipients = no
+    // assignment, i.e. the task stays visible to everyone as it always was. But
+    // recipients that name nobody would silently do the same, so that is refused
+    // instead of quietly publishing a task the researcher meant to restrict.
+    private fun resolveAssignees(recipients: List<Reminder.Recipient>): List<UUID> {
+        if (recipients.isEmpty()) return emptyList()
+
+        val unknown = recurrenceRepository.findUnknownRecipients(recipients)
+        require(unknown.isEmpty()) {
+            "Unknown recipient: " + unknown.joinToString { "${it.type.name.lowercase()} ${it.id}" }
+        }
+        val assignees = recurrenceRepository.resolveUserIds(recipients)
+        require(assignees.isNotEmpty()) { "The chosen recipients do not match any user" }
+        return assignees
     }
 
     // Real edit (writes label/inputType/fieldName/sortOrder/description and
