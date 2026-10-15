@@ -1,0 +1,45 @@
+# US4-4 (docs-and-plan#233): opens the next round of every repeating task.
+#
+# The real trigger is an external scheduler -- cron-job.org, same as the
+# chatbot's /internal/cron/* endpoints -- because nothing inside this service
+# runs on a timer. This workflow is only the by-hand companion (workflow_dispatch),
+# for trying the endpoint or catching up after downtime, and is deliberately NOT
+# on a `schedule:` so it never double-fires alongside cron-job.org.
+#
+# Set up the cron-job.org job like this:
+#   URL      POST https://<web-backend host>/api/v1/service/recurrence/run
+#   Header   X-Service-Key: <this service's CHATBOT_SERVICE_KEY>
+#   When     once a day shortly after midnight Bangkok time (00:05 Asia/Bangkok =
+#            17:05 UTC). A task's day starts at midnight in Bangkok, so a round
+#            then opens at the start of its day.
+#   Alert    on any non-200 answer: the endpoint answers 500 (with the counts in
+#            the body) if any round failed.
+#
+# Safe to run as often as you like -- a round that already exists is never
+# created twice, and a run that finds nothing due does nothing. A run that comes
+# late still opens the rounds that are still within their window (up to 6 days
+# back); older ones are skipped.
+#
+# This workflow needs two repo secrets (Settings > Secrets and variables > Actions):
+#   WEB_BACKEND_URL          -- base URL WITHOUT the /api/v1 context path,
+#                               e.g. https://<service>.onrender.com
+#   WEB_BACKEND_SERVICE_KEY  -- must equal the CHATBOT_SERVICE_KEY env var
+#                               set on the web-backend service itself
+name: Open next rounds of repeating tasks
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call POST /service/recurrence/run
+        run: |
+          status=$(curl -s -o response.json -w '%{http_code}' -X POST \
+            "${{ secrets.WEB_BACKEND_URL }}/api/v1/service/recurrence/run" \
+            -H "X-Service-Key: ${{ secrets.WEB_BACKEND_SERVICE_KEY }}")
+          echo "HTTP $status"
+          cat response.json
+          echo
+          test "$status" = "200"
