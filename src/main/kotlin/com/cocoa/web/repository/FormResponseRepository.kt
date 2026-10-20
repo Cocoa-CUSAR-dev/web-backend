@@ -16,6 +16,7 @@ import com.cocoa.web.model.FormResponse
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL.concat
+import org.jooq.impl.DSL.field
 import org.jooq.impl.DSL.inline
 import org.springframework.stereotype.Repository
 import java.time.LocalDate
@@ -158,15 +159,31 @@ class FormResponseRepository(
     // submitted at least one response on, newest first -- backs the
     // submission-history list page (web-app's fallback + entry point into a
     // single day's detail).
-    fun fetchOwnSubmissionDays(userId: UUID): List<LocalDate> {
-        return dsl.selectDistinct(RESPONSE.SUBMITTED_AT)
+    //
+    // BE-9/US5-1 (docs-and-plan#230): paged newest-first. The page must count
+    // the farmer's calendar DAYS, not raw submitted_at rows (many timestamps
+    // collapse into one day), so the Asia/Bangkok date is bucketed in SQL --
+    // same conversion as toFarmerLocalDate -- and DISTINCT + limit/offset run
+    // on that day, not on the timestamps.
+    fun fetchOwnSubmissionDays(
+        userId: UUID,
+        page: PageRequest,
+    ): List<LocalDate> {
+        val farmerDay =
+            field(
+                "(({0} AT TIME ZONE 'UTC') AT TIME ZONE {1})::date",
+                LocalDate::class.java,
+                RESPONSE.SUBMITTED_AT,
+                inline(FARMER_ZONE.id),
+            )
+        return dsl.selectDistinct(farmerDay)
             .from(RESPONSE)
             .where(RESPONSE.USER_ID.eq(userId))
             .and(RESPONSE.SUBMITTED_AT.isNotNull)
-            .fetch(RESPONSE.SUBMITTED_AT)
-            .map { it.toFarmerLocalDate() }
-            .distinct()
-            .sortedDescending()
+            .orderBy(farmerDay.desc())
+            .limit(page.size)
+            .offset(page.offset)
+            .fetch(farmerDay)
     }
 
     // US2-6 (docs-and-plan#130): every answered field this farmer submitted

@@ -33,9 +33,12 @@ class FormResponseService(
         return formResponseRepository.fetchUserResponses(taskId, pageRequest)
     }
 
-    // US2-6/US5-1 (docs-and-plan#130)
-    fun getOwnSubmissionDays(userId: UUID): List<LocalDate> {
-        return formResponseRepository.fetchOwnSubmissionDays(userId)
+    // US2-6/US5-1 (docs-and-plan#130, #230): paged, newest day first.
+    fun getOwnSubmissionDays(
+        userId: UUID,
+        pageRequest: PageRequest = PageRequest(),
+    ): List<LocalDate> {
+        return formResponseRepository.fetchOwnSubmissionDays(userId, pageRequest)
     }
 
     fun getOwnAnswersForDate(
