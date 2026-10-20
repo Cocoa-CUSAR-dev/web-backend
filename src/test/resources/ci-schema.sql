@@ -173,6 +173,31 @@ CREATE TABLE form.field_validation_rule (
     field_name VARCHAR(255) PRIMARY KEY,
     validation_rule JSONB NOT NULL
 );
+-- US2-13 (migration V30): handler registry + field dependencies. Only the
+-- shape jOOQ codegen needs; the seed rows live in the database repo.
+CREATE TABLE form.handler_registry (
+    handler VARCHAR PRIMARY KEY,
+    schema_name VARCHAR NOT NULL,
+    table_name VARCHAR NOT NULL,
+    label_th VARCHAR NOT NULL,
+    description_th VARCHAR NOT NULL,
+    category VARCHAR NOT NULL,
+    frequency VARCHAR NOT NULL,
+    parent_handler VARCHAR REFERENCES form.handler_registry (handler),
+    parent_field VARCHAR,
+    extra_required_fields VARCHAR[] NOT NULL DEFAULT '{}',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE (schema_name, table_name)
+);
+CREATE TABLE form.field_dependency (
+    child_field VARCHAR NOT NULL,
+    parent_field VARCHAR NOT NULL,
+    link_table VARCHAR NOT NULL,
+    link_column VARCHAR NOT NULL,
+    label_th VARCHAR NOT NULL,
+    PRIMARY KEY (child_field, parent_field)
+);
 CREATE TABLE form.response (
     response_id UUID PRIMARY KEY,
     task_log_id UUID NOT NULL,

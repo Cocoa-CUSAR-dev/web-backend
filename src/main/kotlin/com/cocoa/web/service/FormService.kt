@@ -8,10 +8,13 @@ import com.cocoa.web.model.Form
 import com.cocoa.web.model.Handler
 import com.cocoa.web.repository.FormRepository
 import com.cocoa.web.repository.HandlerCatalogRepository
+import com.cocoa.web.repository.HandlerRegistryRepository
 import com.cocoa.web.repository.QuestionRepository
 import com.cocoa.web.repository.SectionRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 @Service
@@ -20,6 +23,7 @@ class FormService(
     private val sectionRepository: SectionRepository,
     private val questionRepository: QuestionRepository,
     private val handlerCatalogRepository: HandlerCatalogRepository,
+    private val handlerRegistryRepository: HandlerRegistryRepository,
     private val chatbotClient: ChatbotClient,
 ) : BaseService() {
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -63,6 +67,81 @@ class FormService(
         return handlerCatalogRepository.fetchHandlerFields(handler)
     }
 
+    // GET /forms/handlers/catalog (the Data Map page). Everything here
+    // changes slowly -- registry rows by migration, counts as forms and
+    // responses trickle in -- so it's cached 5 minutes like the registry
+    // itself rather than re-aggregated on every page view.
+    @Volatile
+    private var catalogCache: Pair<Instant, Handler.Catalog.Response>? = null
+
+    fun getHandlerCatalog(): Handler.Catalog.Response {
+        catalogCache?.let { (loadedAt, catalog) ->
+            if (Duration.between(loadedAt, Instant.now()) < HandlerRegistryRepository.TTL) return catalog
+        }
+
+        val stats = handlerCatalogRepository.fetchCatalogStats()
+        val entries =
+            handlerRegistryRepository.activeHandlers().map { registration ->
+                val usage = stats.fieldUsage[registration.handler].orEmpty()
+                Handler.Catalog.Entry(
+                    handler = registration.handler,
+                    labelTh = registration.labelTh,
+                    descriptionTh = registration.descriptionTh,
+                    category = registration.category,
+                    frequency = registration.frequency,
+                    table = registration.qualifiedTable,
+                    parentHandler = registration.parentHandler,
+                    parentField = registration.parentField,
+                    fields =
+                        handlerCatalogRepository.fetchHandlerFields(registration.handler).map { field ->
+                            Handler.Catalog.CatalogField(
+                                name = field.name,
+                                dataType = field.dataType,
+                                required = field.required,
+                                references = field.references,
+                                dependsOn = field.dependsOn,
+                                allowedInputTypes = field.allowedInputTypes,
+                                usedByForms = usage[field.name] ?: 0,
+                            )
+                        },
+                    forms = stats.formSummaries[registration.handler] ?: Handler.Catalog.FormSummary(0, null, null),
+                    responseCount = stats.responseCounts[registration.handler] ?: 0,
+                )
+            }
+
+        val catalog =
+            Handler.Catalog.Response(
+                handlers = entries,
+                dependencies = handlerRegistryRepository.dependencies(),
+                registrationTables = HandlerCatalogRepository.REGISTRATION_TABLES,
+                fieldLabels = stats.fieldLabels,
+            )
+        catalogCache = Instant.now() to catalog
+        return catalog
+    }
+
+    // US2-13: the structural rules every saved form must pass (see
+    // FormDefinitionValidator). Throws IllegalArgumentException -> 400 with
+    // every problem listed, one per line.
+    private fun validateDefinition(
+        handler: String,
+        questions: List<FormDefinitionValidator.QuestionSpec>,
+    ) {
+        val registration =
+            handlerCatalogRepository.findRegistration(handler)
+                ?: throw IllegalArgumentException("Unknown handler: $handler")
+        val errors =
+            FormDefinitionValidator.validate(
+                registration = registration,
+                fields = handlerCatalogRepository.fetchHandlerFields(handler),
+                dependencies = handlerRegistryRepository.dependencies(),
+                questions = questions,
+            )
+        if (errors.isNotEmpty()) {
+            throw IllegalArgumentException(errors.joinToString("\n"))
+        }
+    }
+
     // A form with no sections is invisible to fetchForms/GET-forms (it
     // filters on whereExists(SECTION)) -- 21 legacy rows already exist that
     // way by accident, per dynamic-form-proposal.md decision #5. Newly
@@ -79,6 +158,20 @@ class FormService(
         request.sections.forEach {
             require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
         }
+        validateDefinition(
+            request.handler,
+            request.sections.flatMap { section ->
+                section.questions.map { question ->
+                    FormDefinitionValidator.QuestionSpec(
+                        sectionOrder = section.sortOrder,
+                        questionOrder = question.sortOrder,
+                        label = question.label,
+                        inputType = question.inputType,
+                        fieldName = question.fieldName,
+                    )
+                }
+            },
+        )
 
         val formId = formRepository.createForm(request)
 
@@ -117,13 +210,31 @@ class FormService(
         formId: UUID,
         request: Form.Request.Update,
     ): Form.Detail {
-        formRepository.findByFormId(formId)
-            ?: throw EntityNotFoundException("Form not found")
+        val form =
+            formRepository.findByFormId(formId)
+                ?: throw EntityNotFoundException("Form not found")
 
         require(request.sections.isNotEmpty()) { "A form must have at least one section" }
         request.sections.forEach {
             require(it.questions.isNotEmpty()) { "Section '${it.title}' must have at least one question" }
         }
+        // Only what stays active counts -- an inactive question is never
+        // asked, so it can't satisfy a required column. The handler can't
+        // change on update, so it comes from the stored form.
+        validateDefinition(
+            form.handler,
+            request.sections.filter { it.isActive }.flatMap { section ->
+                section.questions.filter { it.isActive }.map { question ->
+                    FormDefinitionValidator.QuestionSpec(
+                        sectionOrder = section.sortOrder,
+                        questionOrder = question.sortOrder,
+                        label = question.label,
+                        inputType = question.inputType,
+                        fieldName = question.fieldName,
+                    )
+                }
+            },
+        )
 
         formRepository.updateForm(formId, request)
 
