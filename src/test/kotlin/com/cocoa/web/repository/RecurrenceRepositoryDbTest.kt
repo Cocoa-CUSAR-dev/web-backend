@@ -61,7 +61,7 @@ class RecurrenceRepositoryDbTest {
     @BeforeEach
     fun connect() {
         dsl = DSL.using(url, user, password)
-        forms = FormRepository(dsl)
+        forms = FormRepository(dsl, HandlerRegistryRepository(dsl))
         recurrences = RecurrenceRepository(dsl)
         cleanup()
     }

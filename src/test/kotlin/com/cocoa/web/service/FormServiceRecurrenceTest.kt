@@ -2,12 +2,14 @@ package com.cocoa.web.service
 
 import com.cocoa.web.client.ChatbotClient
 import com.cocoa.web.model.Form
+import com.cocoa.web.model.Handler
 import com.cocoa.web.model.Question
 import com.cocoa.web.model.Recurrence
 import com.cocoa.web.model.Reminder
 import com.cocoa.web.model.Section
 import com.cocoa.web.repository.FormRepository
 import com.cocoa.web.repository.HandlerCatalogRepository
+import com.cocoa.web.repository.HandlerRegistryRepository
 import com.cocoa.web.repository.QuestionRepository
 import com.cocoa.web.repository.RecurrenceRepository
 import com.cocoa.web.repository.SectionRepository
@@ -32,12 +34,14 @@ import java.util.UUID
 class FormServiceRecurrenceTest {
     private val formRepository: FormRepository = mock()
     private val recurrenceRepository: RecurrenceRepository = mock()
+    private val handlerCatalog: HandlerCatalogRepository = mock()
     private val service =
         FormService(
             formRepository,
             mock<SectionRepository>(),
             mock<QuestionRepository>(),
-            mock<HandlerCatalogRepository>(),
+            handlerCatalog,
+            mock<HandlerRegistryRepository>(),
             mock<ChatbotClient>(),
             recurrenceRepository,
         )
@@ -49,6 +53,24 @@ class FormServiceRecurrenceTest {
 
     @BeforeEach
     fun stubRepository() {
+        // createForm checks the form against its handler first (US2-13). A handler with
+        // no required columns lets these tests stay about repeating and recipients.
+        whenever(handlerCatalog.findRegistration("farm_activity")).thenReturn(
+            Handler.Registration(
+                handler = "farm_activity",
+                schemaName = "agriculture",
+                tableName = "farm_activity",
+                labelTh = "กิจกรรมในสวน",
+                descriptionTh = "",
+                category = "garden",
+                frequency = "daily",
+                parentHandler = null,
+                parentField = null,
+                extraRequiredFields = emptyList(),
+                sortOrder = 10,
+            ),
+        )
+        whenever(handlerCatalog.fetchHandlerFields("farm_activity")).thenReturn(emptyList())
         whenever(formRepository.createForm(any(), any(), any())).thenReturn(formId)
         whenever(formRepository.fetchForm(formId)).thenReturn(
             Form.Detail(formId, "Daily check", null, false, emptyList()),
