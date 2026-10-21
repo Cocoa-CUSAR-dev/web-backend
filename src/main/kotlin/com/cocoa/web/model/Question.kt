@@ -1,5 +1,6 @@
 package com.cocoa.web.model
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.JsonNode
 import java.util.UUID
 
@@ -24,11 +25,22 @@ object Question {
         val sortOrder: Int,
         val choices: List<Choice>?,
         val validationRule: JsonNode?,
+        // US2-13: set only on a question whose field depends on another
+        // (form.field_dependency), e.g. plot_id -> "farm_id". Clients filter
+        // this question's choices by the answer to that field, using each
+        // choice's parentId. Omitted from the JSON when null, so every other
+        // question's payload is byte-for-byte what it was before.
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        val dependsOn: String? = null,
     )
 
     data class Choice(
         val id: String,
         val name: String,
+        // US2-13: the parent row this choice belongs to (a plot's farm_id),
+        // only on a dependent question's choices. Omitted when null.
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        val parentId: String? = null,
     )
 
     object Request {
