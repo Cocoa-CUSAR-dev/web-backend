@@ -59,6 +59,13 @@ jobs:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/cocoa_test
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      # docs-and-plan#231: lets the DB-backed tests (e.g. HistoryRepositoryDbTest)
+      # run against this job's throwaway database. A separate name from
+      # SPRING_DATASOURCE_URL on purpose, so a shell pointed at a real database
+      # never runs them by accident.
+      COCOA_CI_SCHEMA_JDBC_URL: jdbc:postgresql://localhost:5432/cocoa_test
+      COCOA_CI_SCHEMA_USER: postgres
+      COCOA_CI_SCHEMA_PASSWORD: postgres
     steps:
       - name: Checkout
         uses: actions/checkout@v4
