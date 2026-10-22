@@ -51,6 +51,14 @@ object Form {
             // resource -- null/omitted or enabled=false means no reminder.
             // See FormService.createForm.
             val reminder: Reminder.Request.Create? = null,
+            // US4-4 (docs-and-plan#233): optional. When set, this task is
+            // round #1 and a job opens a fresh copy of it every period -- see
+            // RecurrenceService. Null = a one-off task, as before.
+            val recurrence: Recurrence.Request.Create? = null,
+            // Who the task is for, same ROLE / USER shape as the reminder's
+            // recipients. Empty (the default) = shown to everyone, as before;
+            // otherwise only the people these rules name see it.
+            val recipients: List<Reminder.Recipient> = emptyList(),
         )
 
         // Unlike Edit (which only toggles is_active/is_mandatory on rows
