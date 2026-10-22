@@ -1,7 +1,9 @@
 package com.cocoa.web
 
+import com.cocoa.web.base.PageRequest
 import com.cocoa.web.exception.EntityNotFoundException
 import com.cocoa.web.model.Analytics
+import com.cocoa.web.model.Diary
 import com.cocoa.web.model.Form
 import com.cocoa.web.model.FormResponse
 import com.cocoa.web.model.Question
@@ -54,6 +56,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
@@ -66,6 +69,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
@@ -619,6 +623,99 @@ class WebApplicationTests {
         mockMvc.perform(correctRequest("7")).andExpect(status().isForbidden)
 
         verify(responseReviewService, never()).correctField(any(), any(), any(), any(), any())
+    }
+
+    // ----------------------------------------------------------------------
+    // HistoryController (docs-and-plan#231): a farmer's own submission history
+    // ----------------------------------------------------------------------
+
+    private fun signedInUserId(): UUID = (SecurityContextHolder.getContext().authentication.principal as UserPrincipal).getUser().userId
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:own"])
+    fun history_days_askForTheSignedInFarmersOwnDaysOnTheRequestedPage() {
+        // Read before perform(): MockMvc clears the security context afterwards.
+        val me = signedInUserId()
+        val days = listOf(LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 18))
+        whenever(formResponseService.getOwnSubmissionDays(any(), any())).thenReturn(days)
+
+        mockMvc.perform(get("/me/history").param("page", "2").param("size", "10"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value[0]").value("2026-10-20"))
+            .andExpect(jsonPath("$.value[1]").value("2026-10-18"))
+
+        // Whose days comes from the session, never from the request.
+        verify(formResponseService).getOwnSubmissionDays(me, PageRequest(page = 2, size = 10))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:own"])
+    fun history_days_defaultToTheFirstPageOf50() {
+        val me = signedInUserId()
+        whenever(formResponseService.getOwnSubmissionDays(any(), any())).thenReturn(emptyList())
+
+        mockMvc.perform(get("/me/history"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value").isEmpty)
+
+        verify(formResponseService).getOwnSubmissionDays(me, PageRequest(page = 0, size = 50))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:own"])
+    fun history_days_withAPageOutOfBounds_returns400() {
+        mockMvc.perform(get("/me/history").param("page", "-1")).andExpect(status().isBadRequest)
+        mockMvc.perform(get("/me/history").param("size", "0")).andExpect(status().isBadRequest)
+        mockMvc.perform(get("/me/history").param("size", "501")).andExpect(status().isBadRequest)
+
+        verify(formResponseService, never()).getOwnSubmissionDays(any(), any())
+    }
+
+    @Test
+    fun history_days_withoutLogin_returns401() {
+        mockMvc.perform(get("/me/history")).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:all"])
+    fun history_days_withoutOwnResponsePermission_returns403AndReadsNothing() {
+        // A researcher's read:response:all is for reviewing tasks, not for
+        // reading a history page as if it were their own.
+        mockMvc.perform(get("/me/history")).andExpect(status().isForbidden)
+
+        verify(formResponseService, never()).getOwnSubmissionDays(any(), any())
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:own"])
+    fun history_day_returnsTheSignedInFarmersAnswersForThatDate() {
+        val me = signedInUserId()
+        whenever(formResponseService.getOwnAnswersForDate(any(), any())).thenReturn(
+            listOf(Diary.AnswerField(fieldName = "harvest_weight", label = "น้ำหนัก", inputType = "FLOAT", rawValue = "12.5")),
+        )
+
+        mockMvc.perform(get("/me/history/{date}", "2026-10-20"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.value[0].label").value("น้ำหนัก"))
+            .andExpect(jsonPath("$.value[0].rawValue").value("12.5"))
+
+        verify(formResponseService).getOwnAnswersForDate(me, LocalDate.of(2026, 10, 20))
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:own"])
+    fun history_day_withAMalformedDate_returns400() {
+        mockMvc.perform(get("/me/history/{date}", "20-10-2026")).andExpect(status().isBadRequest)
+
+        verify(formResponseService, never()).getOwnAnswersForDate(any(), any())
+    }
+
+    @Test
+    @WithMockPrincipal(authorities = ["read:response:all"])
+    fun history_day_withoutOwnResponsePermission_returns403() {
+        mockMvc.perform(get("/me/history/{date}", "2026-10-20")).andExpect(status().isForbidden)
+
+        verify(formResponseService, never()).getOwnAnswersForDate(any(), any())
     }
 
     // ----------------------------------------------------------------------
